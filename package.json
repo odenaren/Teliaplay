@@ -1,0 +1,32 @@
+{
+  "name": "teliaplay",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "db:check": "node scripts/db-check.mjs",
+    "probe": "node --import ./scripts/register-alias.mjs ./scripts/probe-sources.mjs",
+    "dry-run": "node --import ./scripts/register-alias.mjs ./scripts/dry-run.mjs",
+    "ingest": "node scripts/ingest-cli.mjs",
+    "check:ingar": "node --import ./scripts/register-alias.mjs ./scripts/check-entitlements.mjs",
+    "telia:login": "node --import ./scripts/register-alias.mjs ./scripts/telia-login.mjs",
+    "bridge:test": "node scripts/bridge-test.mjs",
+    "vault:key": "node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\""
+  },
+  "dependencies": {
+    "next": "^15.4.0",
+    "postgres": "^3.4.5",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.7.0"
+  }
+}

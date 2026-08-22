@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0a0b10;
+  --color-surface: #13151d;
+  --color-surface-2: #1b1e29;
+  --color-line: #282c3a;
+  --color-text: #e8eaf2;
+  --color-muted: #8a91a6;
+
+  /* Telias lila, dämpad till något man orkar titta på i mörker. */
+  --color-accent: #a06bff;
+  /* Sport. Appens andra halva, och den som ska gå att hitta med perifert seende. */
+  --color-sport: #4fd18b;
+  /* Direktsändning nu. */
+  --color-live: #ff5470;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+html {
+  background: var(--color-ink);
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (pointer: fine) {
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--color-ink); }
+  ::-webkit-scrollbar-thumb { background: var(--color-line); border-radius: 6px; }
+}
+
+/* Vågräta rader (kanalväljare, filter, affischer) ska kunna svepas. */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/*
+ * Maskerade resultat. Suddning i stället för borttagen text, så att kortets
+ * höjd inte hoppar när du avslöjar det. user-select: none gör att texten inte
+ * kan markeras och råkas läsas, och att en kopierad rad inte bär resultatet
+ * vidare.
+ */
+.spoiler-hidden {
+  filter: blur(7px);
+  user-select: none;
+  pointer-events: none;
+  opacity: 0.75;
+}

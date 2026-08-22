@@ -1,0 +1,3 @@
+# Normalisera radbrytningar i repot. Utan detta checkar Windows in CRLF och
+# varje fil ser ut att ha ändrats när någon annan rör den.
+* text=auto eol=lf
