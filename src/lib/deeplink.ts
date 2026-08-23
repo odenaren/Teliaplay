@@ -39,12 +39,19 @@ const SOK_MONSTER: Partial<Record<TjanstId, string>> = {
 
 export function lankTill(
   tjanstId: string,
-  opts: { titelId?: string | null; namn?: string | null } = {},
+  opts: { url?: string | null; titelId?: string | null; namn?: string | null } = {},
 ): Lank | null {
   const t = tjanst(tjanstId);
   if (!t) return null;
 
   const bas = { tjanstId, appleTvApp: t.appleTvApp };
+
+  /*
+   * En färdig adress från källan slår alltid ett mönster vi byggt själva.
+   * SVT ger oss titelns riktiga väg; att i stället stoppa in ett id i en
+   * mall vore att gissa på något vi redan blivit tillsagda.
+   */
+  if (opts.url) return { ...bas, url: opts.url, niva: "titel" };
 
   if (opts.titelId && t.titelMonster) {
     return { ...bas, url: t.titelMonster.replace("{id}", opts.titelId), niva: "titel" };

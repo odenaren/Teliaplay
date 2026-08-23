@@ -254,26 +254,36 @@ export async function nyttIPaketet(antal = 24): Promise<TitelVy[]> {
 }
 
 /**
- * Titlar som troligen är på väg bort.
+ * Titlar som är, eller troligen är, på väg bort.
  *
- * Bygger på att `sedd_sist` slutat uppdateras: titeln kom inte med i de
- * senaste katalogsvaren. Det är ett närmevärde, inte ett avpubliceringsdatum —
- * sådana finns inte i gratisdatan. Två dygns tystnad är för lite (en missad
- * hämtning räcker), en vecka är för mycket. Fyra dygn är kompromissen.
+ * Två sorters underlag, och de blandas inte ihop:
+ *
+ * SVT säger det själva. Deras urval `lastchance_start` är en officiell uppgift
+ * om vad som snart tas ned, och den sparas som `tillganglig.sista_chansen`.
+ *
+ * För de kommersiella tjänsterna finns ingen sådan uppgift gratis, och där får
+ * `sedd_sist` gälla: titeln kom inte med i de senaste katalogsvaren. Det är ett
+ * närmevärde. Två dygns tystnad är för lite (en missad hämtning räcker), en
+ * vecka är för mycket. Fyra dygn är kompromissen.
+ *
+ * De officiella sorteras först, och `officiell` följer med ut så att
+ * gränssnittet kan säga vilket av de två man tittar på.
  */
 export async function sistaChansen(antal = 12): Promise<TitelVy[]> {
   await ensureSchema();
 
   return sql<TitelVy[]>`
     select t.*, array_agg(a.tjanst_id) as tjanster,
-           min(a.sedd_forst) as sedd_forst, max(a.sedd_sist) as sedd_sist
+           min(a.sedd_forst) as sedd_forst, max(a.sedd_sist) as sedd_sist,
+           bool_or(a.sista_chansen) as officiell
     from titel t
     join tillganglig a on a.titel_id = t.id
     join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true
     group by t.id
-    having max(a.sedd_sist) < now() - interval '4 days'
-       and max(a.sedd_sist) > now() - interval '21 days'
-    order by max(a.sedd_sist)
+    having bool_or(a.sista_chansen)
+        or (max(a.sedd_sist) < now() - interval '4 days'
+            and max(a.sedd_sist) > now() - interval '21 days')
+    order by bool_or(a.sista_chansen) desc, max(a.sedd_sist)
     limit ${antal}
   `;
 }

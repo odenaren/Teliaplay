@@ -21,6 +21,16 @@ loadEnv();
 const bara = process.argv.slice(2).filter((a) => !a.startsWith("-"));
 const kor = (namn) => bara.length === 0 || bara.includes(namn);
 
+/*
+ * Spaningsprobar körs bara när de namnges.
+ *
+ * De testar inte appen utan undersöker sajter vi ÖVERVÄGER att bygga mot, och
+ * skriver ut rådata. Att ha dem i standardkörningen skulle betyda att den
+ * enda utskrift man läser varje gång är full av brus från källor appen inte
+ * använder.
+ */
+const spaning = (namn) => bara.includes(namn);
+
 function rubrik(text) {
   console.log(`\n\x1b[1m${text}\x1b[0m`);
 }
@@ -123,6 +133,98 @@ if (kor("telia")) {
       console.log("    Appen fungerar ändå — kryssa i listan för hand på /ingar.");
     }
   }
+}
+
+/* ---------------------------------------------------------------- SVT Play */
+
+if (kor("svtplay") || kor("svt")) {
+  rubrik("SVT Play — urval från startsidan");
+  try {
+    const { hamtaUrval } = await import("@/lib/sources/svtplay");
+    for (const urval of ["latest_start", "lastchance_start"]) {
+      const titlar = await hamtaUrval(urval);
+      console.log(`  ${urval.padEnd(18)} ${titlar.length} titlar`);
+      if (titlar[0]) {
+        console.log(`    ${titlar[0].namn} (${titlar[0].typ}) → ${titlar[0].vag}`);
+      }
+    }
+  } catch (err) {
+    console.log(`  ✗ ${err.message}`);
+    console.log("    Svarar SVT 'PersistedQueryNotFound' har de ändrat sina frågor.");
+    console.log("    Nya hashar hämtas ur nätverksfliken på svtplay.se, eller ur");
+    console.log("    kodi-svtplay/xbmc-svtplay: resources/lib/api/graphql.py");
+  }
+}
+
+/* ------------------------------------------- kandidater: spaning, ej adapter */
+
+/*
+ * De två nedan har INGEN adapter i appen. Det här är spaning, inte ett test:
+ * de listar vad sajterna faktiskt exponerar så att vi kan avgöra om det är
+ * värt att bygga mot. Utskriften är rådata med flit.
+ */
+
+if (spaning("tvnu-streaming")) {
+  rubrik("tv.nu — finns tillgänglighet per titel? (spaning)");
+  console.log("  tv.nu visar på webben var en titel går att streama. Frågan är om");
+  console.log("  samma uppgift går att nå via web-api.tv.nu.\n");
+
+  for (const vag of [
+    "/search?q=dune",
+    "/streaming",
+    "/streamingServices",
+    "/programs/search?query=dune",
+  ]) {
+    try {
+      const res = await fetch(`https://web-api.tv.nu${vag}`);
+      const text = await res.text();
+      console.log(`  ${String(res.status).padEnd(4)} ${vag}  ${text.length} tecken`);
+      if (res.ok) console.log(`       ${text.slice(0, 200).replace(/\s+/g, " ")}`);
+    } catch (err) {
+      console.log(`  ✗    ${vag}  ${err.message}`);
+    }
+  }
+
+  console.log("\n  Hittas inget här: öppna en titelsida på tv.nu med nätverksfliken");
+  console.log("  öppen och se vilken adress sidan själv anropar.");
+}
+
+if (spaning("tvmatchen")) {
+  rubrik("tvmatchen.nu — sport med kanal, inklusive strömmar (spaning)");
+  console.log("  Skulle kunna ersätta namnmatchningen i lib/match.ts, som gissar");
+  console.log("  på lagnamn i en programtitel. Inget dokumenterat API finns.\n");
+
+  try {
+    const res = await fetch("https://www.tvmatchen.nu/");
+    const html = await res.text();
+    console.log(`  HTTP ${res.status}, ${html.length} tecken`);
+
+    const nextData = /__NEXT_DATA__/.test(html);
+    const nuxt = /__NUXT__/.test(html);
+    const jsonLd = (html.match(/application\/ld\+json/g) ?? []).length;
+    const apier = [...new Set(html.match(/https?:\/\/[a-z0-9.-]*api[a-z0-9.-]*\/[^"'\s<>]{0,60}/gi) ?? [])];
+
+    console.log(`  __NEXT_DATA__: ${nextData ? "ja — hela sidans data ligger i sidkällan" : "nej"}`);
+    console.log(`  __NUXT__:      ${nuxt ? "ja" : "nej"}`);
+    console.log(`  ld+json-block: ${jsonLd}${jsonLd ? " — strukturerad data, ofta med tider" : ""}`);
+    if (apier.length) {
+      console.log("  api-adresser i sidkällan:");
+      for (const a of apier.slice(0, 8)) console.log(`    ${a}`);
+    }
+  } catch (err) {
+    console.log(`  ✗ ${err.message}`);
+  }
+
+  console.log("\n  Notera: tvmatchen.nu har inga publicerade API-villkor. Innan något");
+  console.log("  byggs mot dem — mejla kontakt@tvmatchen.nu och fråga. Att hämta för");
+  console.log("  eget bruk är en sak, att bygga in en tredjepartssajt i en tjänst en");
+  console.log("  annan, och de svarar troligen gärna på frågan.");
+}
+
+if (bara.length === 0) {
+  console.log("\n\x1b[2mSpaning mot källor appen ännu inte använder:\x1b[0m");
+  console.log("\x1b[2m  npm run probe -- tvnu-streaming   finns tillgänglighet per titel?\x1b[0m");
+  console.log("\x1b[2m  npm run probe -- tvmatchen        sport med kanal, inklusive strömmar\x1b[0m");
 }
 
 console.log("");

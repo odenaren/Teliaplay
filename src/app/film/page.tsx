@@ -64,13 +64,24 @@ export default async function Film() {
             Sista chansen
           </h2>
           <p className="mb-2 text-[11px] leading-relaxed text-muted/80">
-            De här titlarna har slutat dyka upp i katalogen och är troligen på väg bort. Det är
-            en gissning byggd på att de saknats i några dygns hämtningar — något officiellt
-            avpubliceringsdatum finns inte i gratisdatan.
+            {sista.some((t) => t.officiell) && (
+              <>
+                Titlar märkta <span className="text-sport">SVT</span> är på väg bort enligt SVT
+                själva.{" "}
+              </>
+            )}
+            Övriga är en gissning: de har slutat dyka upp i katalogen de senaste dygnen. Något
+            officiellt avpubliceringsdatum finns inte i gratisdatan från de kommersiella
+            tjänsterna.
           </p>
           <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
             {sista.map((t) => (
-              <TitelKort key={t.id} titel={t} />
+              <div key={t.id} className="shrink-0">
+                <TitelKort titel={t} />
+                {t.officiell && (
+                  <p className="mt-0.5 text-[9px] font-medium text-sport">SVT: snart borta</p>
+                )}
+              </div>
             ))}
           </div>
         </section>

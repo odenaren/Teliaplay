@@ -44,7 +44,14 @@ export function TitelKort({ titel, favorit }: { titel: TitelVy; favorit?: boolea
           {titel.betyg ? ` · ${titel.betyg}` : ""}
         </span>
         {tjanster[0] && (
-          <SpelaKnapp tjanstId={tjanster[0]} namn={titel.namn} refId={titel.id} sort="titel" liten />
+          <SpelaKnapp
+            tjanstId={tjanster[0]}
+            url={titel.extern_url}
+            namn={titel.namn}
+            refId={titel.id}
+            sort="titel"
+            liten
+          />
         )}
       </div>
     </article>

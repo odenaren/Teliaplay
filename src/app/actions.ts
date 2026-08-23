@@ -193,9 +193,15 @@ export interface SpelaSvar {
  */
 export async function spelaPaTv(
   tjanstId: string,
-  opts: { titelId?: string | null; namn?: string | null; refId?: string; sort?: string } = {},
+  opts: {
+    url?: string | null;
+    titelId?: string | null;
+    namn?: string | null;
+    refId?: string;
+    sort?: string;
+  } = {},
 ): Promise<SpelaSvar> {
-  const lank = lankTill(tjanstId, { titelId: opts.titelId, namn: opts.namn });
+  const lank = lankTill(tjanstId, { url: opts.url, titelId: opts.titelId, namn: opts.namn });
   if (!lank) return { ok: false, meddelande: "Okänd tjänst.", lank: null };
 
   const profil = await aktivProfil();

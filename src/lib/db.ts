@@ -165,6 +165,9 @@ create table if not exists titel (
   poster    text,
   synopsis  text,
   betyg     numeric(3,1),
+  -- Tjänstens egen adress till titeln, när källan ger oss en. SVT gör det;
+  -- TMDB gör det inte, och då byggs länken ur mönstret i content/tjanster.ts.
+  extern_url text,
   uppdaterad_at timestamptz not null default now()
 );
 
@@ -175,6 +178,11 @@ create table if not exists tillganglig (
   tjanst_id  text not null,
   sedd_forst timestamptz not null default now(),
   sedd_sist  timestamptz not null default now(),
+  -- Satt när tjänsten SJÄLV säger att titeln snart försvinner. SVT gör det
+  -- (urvalet lastchance_start); de kommersiella tjänsterna gör det inte, och
+  -- där får gissningen i queries.sistaChansen() gälla i stället. En officiell
+  -- uppgift och en heuristik ska inte se likadana ut i databasen.
+  sista_chansen boolean not null default false,
   primary key (titel_id, tjanst_id)
 );
 
@@ -286,6 +294,8 @@ alter table kanal  add column if not exists kalla text not null default 'manuell
 alter table program add column if not exists bild text;
 alter table titel add column if not exists betyg numeric(3,1);
 alter table sportmatch add column if not exists tjanst_id text;
+alter table titel add column if not exists extern_url text;
+alter table tillganglig add column if not exists sista_chansen boolean not null default false;
 
 -- ----------------------------------------------------------------- index
 create index if not exists program_start_idx on program (start);
@@ -293,6 +303,7 @@ create index if not exists program_kanal_start_idx on program (kanal_id, start);
 create index if not exists program_titel_key_idx on program (titel_key);
 create index if not exists tillganglig_tjanst_idx on tillganglig (tjanst_id);
 create index if not exists tillganglig_sedd_sist_idx on tillganglig (sedd_sist);
+create index if not exists tillganglig_sista_chansen_idx on tillganglig (sista_chansen) where sista_chansen;
 create index if not exists sportmatch_start_idx on sportmatch (start);
 create index if not exists favorit_profil_idx on favorit (profil_id, sort);
 create index if not exists sett_profil_idx on sett (profil_id, at desc);

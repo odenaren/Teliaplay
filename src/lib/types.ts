@@ -54,6 +54,8 @@ export interface TitelRad {
   poster: string | null;
   synopsis: string | null;
   betyg: string | null;
+  /** Tjänstens egen adress, när källan gav oss en. Annars byggs den ur mönstret. */
+  extern_url: string | null;
 }
 
 /** En titel med de tjänster den finns på — alltid bara sådana som ingår. */
@@ -61,6 +63,12 @@ export interface TitelVy extends TitelRad {
   tjanster: string[];
   sedd_forst: Date;
   sedd_sist: Date;
+  /**
+   * Sant när TJÄNSTEN säger att titeln snart försvinner, falskt när det är vår
+   * egen gissning. Skillnaden visas i gränssnittet — en officiell uppgift och
+   * en kvalificerad chansning ska inte se likadana ut för läsaren.
+   */
+  officiell?: boolean;
 }
 
 export interface MatchRad {

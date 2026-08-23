@@ -195,7 +195,29 @@ letar efter varje fält på flera rimliga platser i stället för att kräva en 
 form. `probe` skriver ut det faktiska svaret så att du kan rätta en felgissad
 fältplacering på fem minuter.
 
-Telia-kedjan har samma förbehåll och testas med `npm run telia:login`.
+Telia-kedjan har samma förbehåll och testas med `npm run telia:login`, och
+SVT-kedjan med `npm run probe -- svtplay`.
+
+### Spaning mot källor appen ännu inte använder
+
+```bash
+npm run probe -- tvnu-streaming   # finns tillgänglighet per titel hos tv.nu?
+npm run probe -- tvmatchen        # sport med kanal, inklusive strömmar
+```
+
+De körs bara när de namnges och testar inte appen — de undersöker sajter vi
+överväger att bygga mot, och skriver ut rådata. Två saker är värda att veta
+innan man bygger vidare på dem:
+
+**tv.nu visar var en titel går att streama**, inte bara när den går på tv. Det är
+samma fråga som TMDB/JustWatch besvarar, men med svenska marknaden som
+utgångspunkt i stället för som ett bihang — och utan dygnsfördröjningen.
+
+**tvmatchen.nu kopplar match till kanal direkt**, inklusive strömmar utan linjär
+kanal. Det är exakt den lucka `lib/match.ts` fyller genom att gissa på lagnamn i
+en programtitel. En källa som redan gjort kopplingen vore bättre än en heuristik.
+De har inga publicerade API-villkor — fråga dem (kontakt@tvmatchen.nu) innan
+något byggs in.
 
 ---
 
@@ -206,6 +228,7 @@ Telia-kedjan har samma förbehåll och testas med `npm run telia:login`.
 | Vad som ingår | Telias eget API, med dina uppgifter |
 | Tv-tablå | `web-api.tv.nu` — samma endpoints som `iptv-org/epg` använder |
 | Film och serier | TMDB, tillgänglighetsdata från **JustWatch** |
+| SVT Play | SVT:s eget GraphQL-API, `api.svt.se/contento/graphql` |
 | Matcher och lag | TheSportsDB |
 
 Attributionen på `/kallor` är inget att ta bort: TMDB drar in nyckeln om
@@ -216,6 +239,46 @@ TheSportsDB — deras tv-uppgifter är crowdsourcade och ofta amerikanska, och e
 felaktig kanaluppgift är värre än ingen alls i just den här appen.
 
 Tablådatan stannar i din installation. Den republiceras inte.
+
+---
+
+## SVT Play
+
+SVT ligger i `ALLTID_INGAR` och kryssas aldrig i på `/ingar`. Public service
+finansieras via skatten, och att kräva att du bockar för något du redan betalat
+för vore att låtsas att appen inte vet något den vet.
+
+Katalogen hämtas från **SVT:s eget GraphQL-API**, inte via TMDB. Skälet är att
+SVT Play till stor del är svenskt egenproducerat — dokumentärer, Uppdrag
+granskning, SVT:s dramaserier — och sådant är tunt eller frånvarande i TMDB,
+vars tillgänglighetsdata dessutom är en dygnsgammal JustWatch-export. SVT vet
+själva vad som ligger uppe, och säger det gratis och samma dag.
+
+Servern använder *persisted queries*: i stället för en hel fråga skickas en
+sha256-hash som pekar ut en fråga servern redan känner till. Hasharna i
+`lib/sources/svtplay.ts` kommer ur SVT:s egen webbklient. Ändrar SVT sina
+frågor svarar servern `PersistedQueryNotFound`, och då behöver hasharna
+uppdateras — adaptern säger det rakt ut i felmeddelandet i stället för att
+returnera tomt.
+
+Tre urval hämtas vid varje körning, hela A–Ö-listan bara vid den dygnsvisa:
+
+| Urval | Blir |
+| --- | --- |
+| `latest_start` | Nytt i paketet |
+| `popular_start` | katalogens botten |
+| `lastchance_start` | **Sista chansen, på riktigt** |
+| A–Ö (full körning) | sökbarhet — tusentals program utan bilder |
+
+Det sista är en verklig vinst. För de kommersiella tjänsterna är "Sista chansen"
+en gissning: en titel som slutat dyka upp i katalogen antas vara på väg bort.
+SVT säger det rakt ut. Därför får deras titlar en egen flagga
+(`tillganglig.sista_chansen`) i stället för att köras genom heuristiken, och
+`/film` skriver ut vilket av de två man tittar på. En officiell uppgift och en
+kvalificerad chansning ska inte se likadana ut för läsaren.
+
+SVT ger också titelns riktiga adress, som sparas i `titel.extern_url`. En färdig
+adress från källan slår alltid ett mönster vi byggt själva — se `lib/deeplink.ts`.
 
 ---
 

@@ -17,6 +17,7 @@ import { spelaPaTv } from "@/app/actions";
  */
 export function SpelaKnapp({
   tjanstId,
+  url,
   titelId,
   namn,
   refId,
@@ -24,6 +25,8 @@ export function SpelaKnapp({
   liten,
 }: {
   tjanstId: string;
+  /** Färdig adress från källan. Slår både titelId och namn — se lib/deeplink.ts. */
+  url?: string | null;
   titelId?: string | null;
   namn?: string | null;
   refId?: string;
@@ -37,7 +40,7 @@ export function SpelaKnapp({
 
   const tryck = () =>
     start(async () => {
-      setSvar(await spelaPaTv(tjanstId, { titelId, namn, refId, sort }));
+      setSvar(await spelaPaTv(tjanstId, { url, titelId, namn, refId, sort }));
     });
 
   return (

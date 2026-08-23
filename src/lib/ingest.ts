@@ -21,6 +21,7 @@ import * as tvnu from "./sources/tvnu";
 import * as telia from "./sources/telia";
 import * as tmdb from "./sources/tmdb";
 import * as sportsdb from "./sources/sportsdb";
+import * as svtplay from "./sources/svtplay";
 
 export interface Steg {
   kalla: string;
@@ -85,6 +86,8 @@ export async function hamtaAllt(djup: "snabb" | "full" = "snabb"): Promise<Samma
   steg.push(await kor("tv.nu tablå", tvnuTablaSteg));
   steg.push(await kor("sport", sportSteg));
   steg.push(await kor("matchning", matchningsSteg));
+
+  steg.push(await kor("svt play", () => svtSteg(djup === "full")));
 
   if (djup === "full") {
     steg.push(await kor("tmdb", tmdbSteg));
@@ -374,6 +377,73 @@ async function matchningsSteg(): Promise<number> {
   }
 
   return traffar;
+}
+
+/* -------------------------------------------------------------- SVT Play */
+
+/**
+ * SVT Play:s katalog.
+ *
+ * Körs vid varje hämtning, inte bara den dygnsvisa. SVT kostar ingen nyckel
+ * och tre anrop, och till skillnad från JustWatch-exporten är deras data
+ * färsk — nytt på SVT Play dyker upp samma dag.
+ *
+ * Hela A–Ö-listan hämtas bara vid full körning. Den är tusentals rader utan
+ * bilder och finns för sökningens skull, inte för att bläddras i.
+ *
+ * Steget kräver INTE att svtplay är ikryssad på /ingar. SVT är public service
+ * och ligger i ALLTID_INGAR — att kräva att du kryssar i något du redan
+ * betalat för via skatten vore att låtsas att appen inte vet något den vet.
+ */
+async function svtSteg(full: boolean): Promise<number> {
+  const urval: svtplay.Urval[] = ["latest_start", "popular_start", "lastchance_start"];
+
+  const titlar: svtplay.SvtTitel[] = [];
+  for (const u of urval) {
+    titlar.push(...(await svtplay.hamtaUrval(u)));
+  }
+  if (full) {
+    titlar.push(...(await svtplay.hamtaAllaProgram()));
+  }
+
+  if (titlar.length === 0) {
+    throw new Error("SVT svarade utan titlar — troligen en förändrad fråga, se sources/svtplay.ts");
+  }
+
+  /*
+   * Samma titel kan ligga i flera urval — populär OCH på väg bort är inget
+   * ovanligt. Slå ihop dem först, och låt sista chansen vinna: en titel som
+   * står i lastchance ska flaggas även om den också råkade ligga i latest.
+   */
+  const unika = new Map<string, svtplay.SvtTitel>();
+  for (const t of titlar) {
+    const befintlig = unika.get(t.vag);
+    if (!befintlig) unika.set(t.vag, t);
+    else if (t.sistaChansen) unika.set(t.vag, { ...befintlig, sistaChansen: true });
+  }
+
+  for (const t of unika.values()) {
+    const id = `svt:${t.vag}`;
+    await sql`
+      insert into titel (id, typ, namn, poster, synopsis, extern_url)
+      values (${id}, ${t.typ}, ${t.namn}, ${t.bild}, ${t.synopsis}, ${svtplay.svtplayUrl(t.vag)})
+      on conflict (id) do update set
+        namn     = excluded.namn,
+        poster   = coalesce(excluded.poster, titel.poster),
+        synopsis = coalesce(excluded.synopsis, titel.synopsis),
+        extern_url = excluded.extern_url,
+        uppdaterad_at = now()
+    `;
+    await sql`
+      insert into tillganglig (titel_id, tjanst_id, sista_chansen)
+      values (${id}, 'svtplay', ${t.sistaChansen})
+      on conflict (titel_id, tjanst_id) do update set
+        sedd_sist     = now(),
+        sista_chansen = excluded.sista_chansen
+    `;
+  }
+
+  return unika.size;
 }
 
 /* ------------------------------------------------------------------ TMDB */
