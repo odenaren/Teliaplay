@@ -104,7 +104,7 @@ appen säger själv till på `/kallor` när något saknas:
 
 | Variabel | Utan den |
 | --- | --- |
-| `TMDB_API_KEY` | ingen film- och seriekatalog — `/film` står tom |
+| `TMDB_API_KEY` | ingen film- och seriekatalog — `/film` står tom. Ta *API Key* (32 tecken), inte *Read Access Token* |
 | `TELIA_USERNAME`, `TELIA_PASSWORD` | kanallistan kryssas i för hand på `/ingar` |
 | `VAULT_KEY` (`npm run vault:key`) | `/valv` sparar inga lösenord, bara återställningslänkar |
 | `BRIDGE_URL`, `BRIDGE_SECRET` | Spela-knappen blir en länk i stället för en start på tv:n |

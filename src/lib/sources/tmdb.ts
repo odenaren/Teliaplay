@@ -32,8 +32,26 @@ export interface TmdbTitel {
 }
 
 function nyckel(): string {
-  const k = process.env.TMDB_API_KEY;
+  const k = process.env.TMDB_API_KEY?.trim();
   if (!k) throw new Error("TMDB_API_KEY saknas — ingen film- och seriekatalog hämtas.");
+
+  /*
+   * TMDB delar ut TVÅ referenser på samma sida: "API Key" (v3, 32 tecken hex,
+   * skickas som ?api_key=) och "API Read Access Token" (v4, en JWT som skickas
+   * som Authorization: Bearer). Vi anropar v3 och behöver den förra.
+   *
+   * Klistrar man in den senare svarar TMDB "401 Invalid API key", vilket läses
+   * som att nyckeln är fel — inte att den är av fel sort. Man går tillbaka och
+   * kopierar samma sträng igen. Två rader här sparar den kvarten.
+   */
+  if (k.startsWith("eyJ")) {
+    throw new Error(
+      "TMDB_API_KEY ser ut som ett Read Access Token (v4), inte en API-nyckel. " +
+        "Appen anropar v3 — ta den korta strängen på 32 tecken från samma sida " +
+        "på themoviedb.org/settings/api, inte den långa som börjar på eyJ.",
+    );
+  }
+
   return k;
 }
 
