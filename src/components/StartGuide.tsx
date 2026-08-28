@@ -19,14 +19,17 @@ export function StartGuide({ steg }: { steg: "databas" | "profil" | "ingar" }) {
         <ol className="mt-3 space-y-1.5 text-muted">
           <li>1. Skapa en databas och kopiera anslutningssträngen.</li>
           <li>
-            2. <code className="text-text">cp .env.example .env</code> och klistra in den som{" "}
-            <code className="text-text">DATABASE_URL</code>.
+            2. Klistra in den som <code className="text-text">DATABASE_URL</code> — i Railway
+            under <strong className="text-text">Variables</strong>, eller i filen{" "}
+            <code className="text-text">.env</code> om du kör appen på din egen dator.
           </li>
-          <li>
-            3. <code className="text-text">npm run db:check</code> — den säger till på svenska om
-            något är fel.
-          </li>
+          <li>3. Ladda om den här sidan. Tabellerna skapas av sig själva.</li>
         </ol>
+        <p className="mt-3 text-[11px] text-muted">
+          Sitter du vid en dator med projektet utcheckat säger{" "}
+          <code className="text-text">npm run db:check</code> exakt vad som är fel med
+          strängen. Det behövs inte för att komma igång.
+        </p>
       </Ruta>
     );
   }
