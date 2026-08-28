@@ -57,7 +57,7 @@ export default async function Valv() {
         <p className="mt-1 text-muted">
           {nyckel
             ? "Lösenord och 2FA-nycklar ligger krypterade i databasen. Nyckeln finns bara i VAULT_KEY — en databasdump utan den är obrukbar."
-            : "VAULT_KEY saknas, så inga lösenord kan sparas. Återställningslänkarna nedan fungerar ändå. Generera en nyckel med `npm run vault:key`."}
+            : "VAULT_KEY saknas, så inga lösenord kan sparas. Sätt den under Variables i Railway — 32 slumpade byte i base64 — så dyker rutorna för lösenord och 2FA upp här. Återställningslänkarna nedan fungerar ändå."}
         </p>
         {!profil.harPin && (
           <form action={sattPin} className="mt-3 flex items-center gap-2">
@@ -122,11 +122,28 @@ export default async function Valv() {
                   <input type="hidden" name="tjanstId" value={t.id} />
                   <Falt namn="agare" etikett="Vem äger kontot" varde={konto?.agare ?? ""} />
                   <Falt namn="epost" etikett="E-post" varde={konto?.epost ?? ""} />
-                  {nyckel && (
+                  {nyckel ? (
                     <>
                       <Falt namn="losen" etikett="Lösenord (tomt = rör inte)" typ="password" />
                       <Falt namn="totp" etikett="otpauth://-länk för 2FA" />
                     </>
+                  ) : (
+                    /*
+                      Rutorna för lösenord och 2FA finns inte utan VAULT_KEY —
+                      ett fält som tar emot ett lösenord och sedan kastar det
+                      vore värre än inget fält alls.
+
+                      Men de får inte bara FÖRSVINNA. Den som fyller i HBO Max
+                      och undrar var lösenordsrutan tog vägen kopplar inte ihop
+                      det med en rad högst upp på sidan om en miljövariabel.
+                      Saknas något ska det stå där man letar efter det.
+                    */
+                    <p className="rounded border border-line bg-surface px-2 py-1.5 leading-relaxed text-muted">
+                      <strong className="text-text">Ingen ruta för lösenord?</strong> Den kommer
+                      när <code className="text-text">VAULT_KEY</code> är satt — utan nyckel finns
+                      det ingenting att kryptera med, och appen sparar hellre inget lösenord än ett
+                      i klartext. Ägare, mejl och anteckning fungerar under tiden.
+                    </p>
                   )}
                   <Falt namn="notering" etikett="Notering" varde={konto?.notering ?? ""} />
                   <button type="submit" className="rounded border border-line px-2 py-1 text-[11px]">

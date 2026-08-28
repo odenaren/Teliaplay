@@ -39,6 +39,15 @@ const PORT_APP = 3999;
 const UT = path.join(process.cwd(), "lab-bilder");
 
 const hall = process.argv.includes("--hall");
+/*
+ * Kör utan VAULT_KEY.
+ *
+ * Halva valvets beteende ligger i vad som händer när nyckeln SAKNAS, och det
+ * läget är det man faktiskt möter första gången man öppnar sidan. Ett labb som
+ * bara kan visa det färdiga tillståndet missar just den skärm användaren
+ * fastnar på.
+ */
+const utanValvnyckel = process.argv.includes("--utan-valvnyckel");
 const bara = process.argv.find((a) => a.startsWith("--sida="))?.split("=")[1];
 
 /** Sidorna labbet går igenom. Namnet blir filnamnet. */
@@ -93,7 +102,7 @@ async function main() {
 
   const url = `postgresql://lab:lab@127.0.0.1:${PORT_DB}/postgres`;
   process.env.DATABASE_URL = url;
-  process.env.VAULT_KEY = LAB_VAULT_KEY;
+  if (!utanValvnyckel) process.env.VAULT_KEY = LAB_VAULT_KEY;
 
   console.log("→ skapar schemat med appens egen ensureSchema()");
   const { ensureSchema, sql: appSql } = await import("@/lib/db");
@@ -134,7 +143,7 @@ async function main() {
       // annars atta, och de sju som koar syns som en sida som aldrig laddar
       // klart. Mot en riktig Postgres galler inte det har.
       DB_POOL_MAX: "1",
-      VAULT_KEY: LAB_VAULT_KEY,
+      VAULT_KEY: utanValvnyckel ? "" : LAB_VAULT_KEY,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -251,12 +260,13 @@ async function seed(sql) {
    * man inte fyllt i som för den man fyllt i.
    */
   const { kryptera } = await import("@/lib/vault");
+  const hemlig = (v) => (utanValvnyckel ? null : kryptera(v));
   await sql`
     insert into konto (id, tjanst_id, agare, epost, losen_krypt, totp_krypt, notering)
     values
       ('konto:viaplay', 'viaplay', 'Jag', 'jag@example.com',
-       ${kryptera("hemligt-losenord-123")},
-       ${kryptera("otpauth://totp/Viaplay:jag@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Viaplay")},
+       ${hemlig("hemligt-losenord-123")},
+       ${hemlig("otpauth://totp/Viaplay:jag@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Viaplay")},
        'Betalas av mig, delas med Kalle'),
       ('konto:max', 'max', 'Kalle', 'kalle@example.com', null, null,
        'Kalles konto — fråga honom om lösenordet')
@@ -334,7 +344,19 @@ async function skärmbilder() {
       timeout: 20_000,
     });
 
-    const fil = path.join(UT, `${namn}.png`);
+    /*
+     * Fäll ut allt hopfällt.
+     *
+     * Formulär ligger bakom <details> och är därför osynliga för labbet i
+     * normalläge — och det är just inuti dem felen sitter, eftersom ingen
+     * tittar där. En skärmbild av en hopfälld sida bevisar bara att pilen
+     * ritas.
+     */
+    await sida.evaluate(() => {
+      for (const d of document.querySelectorAll("details")) d.open = true;
+    });
+
+    const fil = path.join(UT, `${namn}${utanValvnyckel ? "-utan-nyckel" : ""}.png`);
     await sida.screenshot({ path: fil, fullPage: true });
 
     const status = svar?.status() ?? 0;
