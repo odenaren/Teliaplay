@@ -81,6 +81,33 @@ En enda Railway-tjänst räcker. Schemaläggaren startar med servern via
 
 **Kör bara EN instans.** Två repliker betyder två schemaläggare.
 
+#### Variabler i Railway
+
+Railway läser ingen `.env` — allt måste in under *Variables* på tjänsten. Det
+minsta som behövs för att appen ska starta är två rader:
+
+| Variabel | Värde |
+| --- | --- |
+| `DATABASE_URL` | Neons pooled-sträng, eller `${{Postgres.DATABASE_URL}}` om databasen ligger i samma projekt |
+| `INGEST_SECRET` | `node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"` |
+
+Med bara de två fungerar tablå och sport. Resten låser upp en funktion var, och
+appen säger själv till på `/kallor` när något saknas:
+
+| Variabel | Utan den |
+| --- | --- |
+| `TMDB_API_KEY` | ingen film- och seriekatalog — `/film` står tom |
+| `TELIA_USERNAME`, `TELIA_PASSWORD` | kanallistan kryssas i för hand på `/ingar` |
+| `VAULT_KEY` (`npm run vault:key`) | `/valv` sparar inga lösenord, bara återställningslänkar |
+| `BRIDGE_URL`, `BRIDGE_SECRET` | Spela-knappen blir en länk i stället för en start på tv:n |
+| `SPORTSDB_KEY` | faller tillbaka på testnyckeln `3`, vilket räcker för ett hushåll |
+
+`PORT` sätter Railway själv — skriv inte över den. `VAULT_KEY` går inte att byta
+i efterhand utan att allt sparat i valvet blir obrukbart.
+
+Efter första deployen: öppna `/ingar` och kryssa i vad som ingår. Innan appen
+vet det visar den ingenting, och det är inte ett fel.
+
 ---
 
 ## Vad som ingår, och varifrån appen vet det
