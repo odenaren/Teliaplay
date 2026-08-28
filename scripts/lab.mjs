@@ -28,6 +28,13 @@ import postgres from "postgres";
 import * as fix from "./lab/fixtures.mjs";
 
 const PORT_DB = 55432;
+/*
+ * Labbets egen VAULT_KEY. Den är hårdkodad med flit: den krypterar bara
+ * provdata som lever i minnet i tre minuter, och att slumpa den skulle göra
+ * att sådden inte kan skrivas av samma nyckel som servern läser med.
+ * Använd den ALDRIG i drift — den står i git.
+ */
+const LAB_VAULT_KEY = "bGFiYmV0cy1ueWNrZWwtYWxkcmlnLWktZHJpZnQtMDA=";
 const PORT_APP = 3999;
 const UT = path.join(process.cwd(), "lab-bilder");
 
@@ -43,6 +50,7 @@ const SIDOR = [
   ["tabla", "/tabla"],
   ["sok", "/sok?q=so"],
   ["ingar", "/ingar"],
+  ["valv", "/valv"],
   ["kallor", "/kallor"],
   ["installningar", "/installningar"],
 ];
@@ -85,6 +93,7 @@ async function main() {
 
   const url = `postgresql://lab:lab@127.0.0.1:${PORT_DB}/postgres`;
   process.env.DATABASE_URL = url;
+  process.env.VAULT_KEY = LAB_VAULT_KEY;
 
   console.log("→ skapar schemat med appens egen ensureSchema()");
   const { ensureSchema, sql: appSql } = await import("@/lib/db");
@@ -110,7 +119,7 @@ async function main() {
   await sql.end({ timeout: 5 });
 
   console.log("→ bygger appen");
-  await kör("npx", ["next", "build"], { DATABASE_URL: url });
+  await kör("npx", ["next", "build"], { DATABASE_URL: url, VAULT_KEY: LAB_VAULT_KEY });
 
   await frigörPort(PORT_APP);
 
@@ -125,6 +134,7 @@ async function main() {
       // annars atta, och de sju som koar syns som en sida som aldrig laddar
       // klart. Mot en riktig Postgres galler inte det har.
       DB_POOL_MAX: "1",
+      VAULT_KEY: LAB_VAULT_KEY,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -234,6 +244,23 @@ async function seed(sql) {
                       ${m.program_id ? new Date() : null})
               on conflict (id) do nothing`;
   }
+
+  /*
+   * Valvet: ett komplett konto, ett utan lösenord och ett som inte finns alls.
+   * De tre raderna är hela poängen — sidan ska se lika färdig ut för tjänsten
+   * man inte fyllt i som för den man fyllt i.
+   */
+  const { kryptera } = await import("@/lib/vault");
+  await sql`
+    insert into konto (id, tjanst_id, agare, epost, losen_krypt, totp_krypt, notering)
+    values
+      ('konto:viaplay', 'viaplay', 'Jag', 'jag@example.com',
+       ${kryptera("hemligt-losenord-123")},
+       ${kryptera("otpauth://totp/Viaplay:jag@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Viaplay")},
+       'Betalas av mig, delas med Kalle'),
+      ('konto:max', 'max', 'Kalle', 'kalle@example.com', null, null,
+       'Kalles konto — fråga honom om lösenordet')
+    on conflict (id) do nothing`;
 
   await sql`insert into favorit (profil_id, sort, ref_id) values ('lab', 'kanal', 'svt1')
             on conflict do nothing`;
@@ -401,8 +428,26 @@ async function frigörPort(port) {
   await new Promise((r) => setTimeout(r, 1500));
 }
 
+/*
+ * Nedstängningen får inte avgöra utfallet.
+ *
+ * pglite kastar ibland när den stängs — den städar en transaktion som inte
+ * finns kvar — och det sker EFTER att bilderna är skrivna. Utan den här
+ * vakten slutar en lyckad körning med en stacktrace och exitkod 1, vilket är
+ * det enda felmeddelande som är värre än inget: ett som säger att något gick
+ * sönder när det inte gjorde det.
+ */
+let lyckades = false;
+
+process.on("uncaughtException", (err) => {
+  if (lyckades) process.exit(0);
+  console.error("\n✗ labbet stannade:", err.message);
+  process.exit(1);
+});
+
 main()
   .then(async () => {
+    lyckades = true;
     if (!hall) await stäng();
     process.exit(0);
   })

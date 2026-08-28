@@ -37,7 +37,49 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 Telia Play, utan det du inte har
               </p>
             </Link>
-            {profil && <ProfilVaxel profiler={profiler} aktiv={profil.id} />}
+            <div className="flex shrink-0 items-center gap-1.5">
+              {/*
+                Genväg till valvet.
+
+                Den låg bara under Inställningar, tre steg bort, och behovet
+                uppstår i exakt ett läge: du står framför tv:n, Viaplay har
+                loggat ut dig, och matchen har börjat. Då letar man inte i en
+                inställningsmeny. Nyckeln i huvudet är alltid en tumme bort och
+                stör ingen som inte behöver den.
+              */}
+              {profil && (
+                <Link
+                  href="/valv"
+                  aria-label="Inloggningar"
+                  title="Inloggningar"
+                  className="flex items-center rounded-lg border border-line px-2 py-1.5 text-muted transition-colors hover:border-accent/50 hover:text-accent"
+                >
+                  {/*
+                    Ritad, inte skriven. Teckensnittstecknet för en nyckel (⚿)
+                    saknas i systemets typsnitt och ritades som en tom ruta —
+                    en knapp utan symbol ser trasig ut, och en trasig knapp
+                    trycker man inte på.
+                  */}
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <circle cx="8" cy="8" r="4.2" />
+                    <path d="M11 11 20 20" />
+                    <path d="M17.5 17.5 15.5 19.5" />
+                    <path d="M20 20 18 22" />
+                  </svg>
+                </Link>
+              )}
+              {profil && <ProfilVaxel profiler={profiler} aktiv={profil.id} />}
+            </div>
           </div>
         </header>
 

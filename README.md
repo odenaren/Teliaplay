@@ -191,6 +191,11 @@ och lösenordet ligger i ett mejl från 2023 eller i huvudet på din kompis.
 vilken mejl, lösenordet bakom en kopieringsknapp, en färsk 2FA-kod, och länken
 till "glömt lösenord" när inget av det hjälper.
 
+Nyckeln uppe till höger, bredvid profilväxeln, går dit från vilken sida som
+helst. Sidan låg först bara under Inställningar, vilket är fel ställe för något
+man behöver i exakt det läge man står framför tv:n med en match som redan
+börjat.
+
 - **AES-256-GCM**, nyckeln i `VAULT_KEY` och ingen annanstans. En databasdump
   utan nyckeln är obrukbar.
 - Egen slumpad IV per hemlighet. Att återanvända en IV i GCM är inte en
