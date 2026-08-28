@@ -66,6 +66,14 @@ Vilken Postgres som helst duger. **Neon** rekommenderas: gratisplanen tillåter
 
 TLS slås på automatiskt utom mot localhost och `*.railway.internal`.
 
+Klistra in strängen precis som den står. Parametrar som bara betyder något för
+libpq — `channel_binding`, `sslcert` och deras släktingar — stryks av
+`stadaUrl()` i `lib/db.ts` innan drivrutinen får strängen. Utan den strykningen
+skickas de vidare som startup-parametrar och Postgres stänger anslutningen med
+"unrecognized configuration parameter", vilket ser ut som ett TLS- eller
+lösenordsfel och felsöks som ett sådant i en timme. Neon lägger med
+`channel_binding` i strängen man kopierar ur panelen.
+
 > `.env.local` har **högre prioritet** än `.env` i Next. Har du båda är det
 > `.env.local` som gäller.
 

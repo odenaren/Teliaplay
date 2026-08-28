@@ -27,6 +27,46 @@ export function sslModeFor(url: string): "require" | false {
   return "require";
 }
 
+/**
+ * Parametrar som libpq tolkar i klienten, men som postgres.js inte känner igen
+ * och därför skickar vidare till servern som startup-parametrar. Postgres
+ * svarar då "unrecognized configuration parameter" och anslutningen dör innan
+ * en enda fråga körts.
+ *
+ * Det är inte en teoretisk risk: Neon lägger sedan en tid `channel_binding`
+ * i strängen man kopierar ur deras panel. Att stryka dem här är bättre än att
+ * be den som deployar att redigera en sträng för hand — det felet syns bara
+ * som ett anslutningsfel, och gissningen landar alltid på TLS eller lösenord.
+ *
+ * `options` står medvetet inte med. Den ÄR en riktig startup-parameter och
+ * betyder något för servern.
+ */
+const KLIENTPARAMETRAR = [
+  "channel_binding",
+  "sslrootcert",
+  "sslcert",
+  "sslkey",
+  "sslnegotiation",
+  "gssencmode",
+  "krbsrvname",
+];
+
+/**
+ * Plockar bort klientparametrarna ur anslutningssträngen. Allt annat lämnas
+ * orört — sslmode läses fortfarande av sslModeFor() innan det här körs.
+ */
+export function stadaUrl(url: string): string {
+  if (!url.includes("?")) return url;
+
+  const [bas, fraga] = [url.slice(0, url.indexOf("?")), url.slice(url.indexOf("?") + 1)];
+
+  const kvar = fraga
+    .split("&")
+    .filter((par) => par && !KLIENTPARAMETRAR.includes(par.split("=")[0].toLowerCase()));
+
+  return kvar.length > 0 ? `${bas}?${kvar.join("&")}` : bas;
+}
+
 function create() {
   const url = process.env.DATABASE_URL;
   if (!url) {
@@ -36,7 +76,7 @@ function create() {
     );
   }
 
-  return postgres(url, {
+  return postgres(stadaUrl(url), {
     ssl: sslModeFor(url),
     max: Number(process.env.DB_POOL_MAX ?? 8),
     idle_timeout: 20,

@@ -12,6 +12,7 @@
 
 import postgres from "postgres";
 import { loadEnv } from "./env.mjs";
+import { sslModeFor, stadaUrl } from "@/lib/db";
 
 loadEnv();
 
@@ -34,14 +35,11 @@ if (/[#@/?]/.test(decodeURIComponent(losen)) && losen === decodeURIComponent(los
   );
 }
 
-const host = url.match(/@([^:/?#]+)/)?.[1] ?? "";
-const ssl = /sslmode=disable/.test(url)
-  ? false
-  : /^(localhost|127\.0\.0\.1)$/.test(host) || host.endsWith(".railway.internal")
-    ? false
-    : "require";
+// Samma regler som appen kör, importerade och inte kopierade. En kontroll som
+// tolkar strängen på sitt eget sätt godkänner en sträng appen sedan faller på.
+const ssl = sslModeFor(url);
 
-const sql = postgres(url, { ssl, prepare: false, connect_timeout: 15, max: 1 });
+const sql = postgres(stadaUrl(url), { ssl, prepare: false, connect_timeout: 15, max: 1 });
 
 const TABELLER = [
   "profil",
