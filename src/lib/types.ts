@@ -56,6 +56,8 @@ export interface TitelRad {
   betyg: string | null;
   /** Tjänstens egen adress, när källan gav oss en. Annars byggs den ur mönstret. */
   extern_url: string | null;
+  /** Våra genre-id:n, se content/genrer.ts. Tom lista när källan inte sa något. */
+  genre: string[];
 }
 
 /** En titel med de tjänster den finns på — alltid bara sådana som ingår. */

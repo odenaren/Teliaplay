@@ -17,6 +17,7 @@
  */
 
 import { fetchJson } from "./http";
+import { franTmdb } from "@/content/genrer";
 
 const BAS = "https://api.themoviedb.org/3";
 const BILD = "https://image.tmdb.org/t/p/w342";
@@ -29,6 +30,8 @@ export interface TmdbTitel {
   poster: string | null;
   synopsis: string | null;
   betyg: number | null;
+  /** Våra genre-id:n, översatta från TMDB:s. Tom lista när inget matchade. */
+  genrer: string[];
 }
 
 function nyckel(): string {
@@ -102,6 +105,43 @@ export async function hamtaKatalog(
   return ut;
 }
 
+/**
+ * Det som faktiskt är NYTT, i TMDB:s egen ordning.
+ *
+ * Skillnaden mot hamtaKatalog är sorteringen och datumfönstret: här frågar vi
+ * efter titlar som släppts de senaste `dagar` dygnen, nyast först. Det är en
+ * uppgift källan har och vi inte behöver gissa.
+ *
+ * Alternativet — att kalla varje rad vi inte sett förut för "ny" — ser ut att
+ * fungera tills en katalog importeras i klump. Då blir allt nytt samtidigt,
+ * ordningen faller tillbaka på insättningsordningen, och "Nytt i paketet"
+ * fylls med ett alfabetiskt block. Det felet har den här appen haft.
+ *
+ * Ordningen bevaras av anroparen som nyhet_rank. Utan den hamnar titlar från
+ * samma körning i godtycklig ordning, eftersom de delar tidsstämpel.
+ */
+export async function hamtaNyheter(
+  providerIds: number[],
+  typ: "film" | "serie",
+  dagar = 90,
+): Promise<TmdbTitel[]> {
+  if (providerIds.length === 0) return [];
+
+  const path = typ === "film" ? "discover/movie" : "discover/tv";
+  const gräns = new Date(Date.now() - dagar * 86_400_000).toISOString().slice(0, 10);
+  const datumFalt = typ === "film" ? "primary_release_date" : "first_air_date";
+
+  const url =
+    `${BAS}/${path}?api_key=${nyckel()}` +
+    `&watch_region=SE&with_watch_providers=${providerIds.join("|")}` +
+    `&with_watch_monetization_types=flatrate` +
+    `&${datumFalt}.gte=${gräns}&${datumFalt}.lte=${new Date().toISOString().slice(0, 10)}` +
+    `&language=sv-SE&sort_by=${datumFalt}.desc&page=1`;
+
+  const svar = await fetchJson<{ results?: unknown[] }>(url);
+  return (svar.results ?? []).flatMap((rad) => tolka(rad, typ));
+}
+
 function tolka(rad: unknown, typ: "film" | "serie"): TmdbTitel[] {
   const r = rad as Record<string, unknown>;
   const id = Number(r.id);
@@ -121,6 +161,7 @@ function tolka(rad: unknown, typ: "film" | "serie"): TmdbTitel[] {
       poster,
       synopsis: typeof r.overview === "string" && r.overview ? r.overview : null,
       betyg: Number.isFinite(betyg) && betyg > 0 ? Math.round(betyg * 10) / 10 : null,
+      genrer: franTmdb(r.genre_ids),
     },
   ];
 }

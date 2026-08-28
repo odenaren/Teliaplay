@@ -216,10 +216,46 @@ och kontoöversikten fungerar ändå.
 | `npm run ingest` | Triggar en hämtning mot en körande server |
 | `npm run bridge:test` | Pingar bryggan, listar appar på Apple TV:n |
 | `npm run vault:key` | Genererar en VAULT_KEY |
+| `npm run lab` | **Kör hela appen mot en riktig databas med provdata och tar skärmbilder** |
 
 `dry-run` och `check:ingar` importerar appens **riktiga** moduler via en
 alias-loader, inte kopior av dem. Ett testskript som duplicerar parsningen
 testar sina egna regler och driver isär vid första ändring.
+
+### Labbet
+
+```bash
+npm run lab              # bygger, startar, skärmbilder till lab-bilder/
+npm run lab -- --hall    # samma, men servern står kvar så du kan klicka själv
+npm run lab -- --sida=bladdra   # bara en sida
+```
+
+Appen skrevs länge utan att någon sett den köra. Källorna går inte att nå från
+utvecklingsmiljön och en databas fanns inte heller, så gränssnittet
+kontrollerades genom att läsa koden. Det höll ungefär så länge man kan tro: två
+av de fel som till slut hittades — en lista med bara program på F, en lagväljare
+som gav engelska lag oavsett liga — syntes inte i koden alls. De syntes på
+skärmen.
+
+Labbet startar **PGlite**, en riktig Postgres kompilerad till wasm som talar
+samma nätverksprotokoll, fyller den med provdata, bygger appen, startar den och
+går igenom sidorna med Playwright. Inget mockas: samma `ensureSchema()`, samma
+frågor, samma `postgres.js`. Sidor som svarar 500 skriver ut serverns
+stacktrace i stället för att bli en skärmbild av en felruta.
+
+Provdatan i `scripts/lab/fixtures.mjs` är avsiktligt obekväm — en titel utan
+affisch, ett namn som måste brytas på två rader, två matcher som krockar, ett
+block utan innehåll. Ett labb med prydlig data visar bara att prydlig data ser
+prydlig ut.
+
+Affischadresserna pekar på riktiga värdar som inte går att nå härifrån.
+Playwright svarar i deras ställe med en genererad ruta i rätt proportion, så
+att en trasig bildlänk syns som trasig i stället för att drunkna i att allt är
+trasigt.
+
+En sak stämmer inte med driften: PGlites socketserver betjänar en anslutning i
+taget, så labbet kör med `DB_POOL_MAX=1`. Mot Neon eller Railway gäller inte
+den begränsningen.
 
 ### Kör `npm run probe` innan du litar på tablån
 

@@ -96,6 +96,23 @@ export function dagEtikett(key: string): string {
   return dateFmt.format(from);
 }
 
+/**
+ * Samma etikett, men för en tidpunkt — och då kan den säga "inatt".
+ *
+ * Tv-dygnet slutar 06:00, så en match 00:27 hör till gårdagens tablå och får
+ * etiketten "idag". Det är rätt enligt tablåns logik och läses ändå som fel:
+ * "00:27 idag" om en match som är tre timmar bort ser ut som något som redan
+ * varit. "inatt" är samma uppgift, utan tvetydigheten.
+ */
+export function dagEtikettFor(date: Date): string {
+  const key = tvDayKey(date);
+  const timme = parts(date).hour;
+
+  if (key === tvDayKey() && timme < TV_DAY_START_HOUR) return "inatt";
+
+  return dagEtikett(key);
+}
+
 /** "om 12 min", "om 3 tim", "pågår", "slut". */
 export function relativt(start: Date, slut?: Date | null): string {
   const nu = Date.now();

@@ -17,6 +17,7 @@ import { alderDagar } from "@/lib/entitlement";
 import { ProgramKort } from "@/components/ProgramKort";
 import { MatchKort } from "@/components/MatchKort";
 import { TitelKort } from "@/components/TitelKort";
+import { Tips } from "@/components/Tips";
 import { Tom } from "@/components/Tom";
 import { StartGuide } from "@/components/StartGuide";
 import type { BlockSort } from "@/content/block";
@@ -54,6 +55,14 @@ export default async function Start() {
   const forandring = await paketForandring();
   const alder = alderDagar(karta);
 
+  /*
+   * Tipset högst upp är räknat, inte skrivet i förväg. Det står bara där när
+   * appen faktiskt har något att säga om just den här kvällen — annars är det
+   * en rad man lär sig hoppa över, och då syns den inte heller den gången den
+   * betyder något.
+   */
+  const påVägBort = (await sistaChansen(20)).filter((t) => t.officiell).length;
+
   return (
     <div className="space-y-7">
       {forandring && (
@@ -74,6 +83,15 @@ export default async function Start() {
           Ingår-listan bekräftades senast för {alder} dagar sedan. Telia-hämtningen kan ha
           slutat fungera — <Link href="/kallor" className="underline decoration-dotted">se källor</Link>.
         </aside>
+      )}
+
+      {påVägBort > 0 && (
+        <Tips
+          ton="brådskande"
+          text={`${påVägBort} ${påVägBort === 1 ? "titel du kan se" : "titlar du kan se"} försvinner inom kort enligt tjänsten själv.`}
+          lank="/bladdra"
+          lankText="Se vilka"
+        />
       )}
 
       {innehall.map(({ sort, data }) => (
@@ -136,14 +154,16 @@ function BlockVy({ sort, data }: { sort: BlockSort; data: BlockData }) {
 
   return (
     <section>
-      <h2 className="mb-2 text-[13px] font-semibold tracking-tight text-muted">{def.titel}</h2>
+      <h2 className="mb-2 text-[14px] font-semibold tracking-tight">{def.titel}</h2>
 
       {tomt ? (
         <TomtBlock sort={sort} />
       ) : data.typ === "titel" ? (
-        <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+        <div className="no-scrollbar -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1">
           {data.poster.map((t) => (
-            <TitelKort key={t.id} titel={t} />
+            <div key={t.id} className="snap-start">
+              <TitelKort titel={t} />
+            </div>
           ))}
         </div>
       ) : data.typ === "match" ? (
@@ -206,7 +226,27 @@ function TomtBlock({ sort }: { sort: BlockSort }) {
     return (
       <Tom
         rubrik="Katalogen är inte hämtad än"
-        text="Film- och serielistan kräver en TMDB-nyckel och hämtas en gång per dygn."
+        text="Film- och serielistan kräver en TMDB-nyckel och hämtas en gång per dygn. SVT Play hämtas utan nyckel och borde synas ändå."
+        lank="/kallor"
+        lankText="Se källor"
+      />
+    );
+  }
+  if (sort === "sparat") {
+    return (
+      <Tom
+        rubrik="Inget sparat"
+        text="Tryck stjärnan på ett program eller en film så hamnar den här — det är listan över sådant du vill komma ihåg till i kväll."
+        lank="/bladdra"
+        lankText="Hitta något"
+      />
+    );
+  }
+  if (sort === "live-nu" || sort === "ikvall") {
+    return (
+      <Tom
+        rubrik="Tablån är tom"
+        text="Tablån hämtas var tjugonde minut. Är den tom en längre stund har hämtningen fastnat."
         lank="/kallor"
         lankText="Se källor"
       />
@@ -215,7 +255,7 @@ function TomtBlock({ sort }: { sort: BlockSort }) {
   return (
     <Tom
       rubrik="Inget här just nu"
-      text="Tablån hämtas var tjugonde minut. Är den tom en längre stund har hämtningen fastnat."
+      text="Blocket fylls när det finns något att visa."
       lank="/kallor"
       lankText="Se källor"
     />

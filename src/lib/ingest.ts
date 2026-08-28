@@ -398,12 +398,24 @@ async function matchningsSteg(): Promise<number> {
 async function svtSteg(full: boolean): Promise<number> {
   const urval: svtplay.Urval[] = ["latest_start", "popular_start", "lastchance_start"];
 
-  const titlar: svtplay.SvtTitel[] = [];
+  /*
+   * Nyhetsplatsen kommer BARA ur latest_start, och bara därifrån.
+   *
+   * popular_start är populärt, inte nytt. A-Ö-listan är hela katalogen i
+   * bokstavsordning. Låter man någon av dem sätta nyhetsstämpeln blir "Nytt i
+   * paketet" en alfabetisk klump — trettio program som alla börjar på F,
+   * presenterade som veckans nyheter. Det var precis vad appen gjorde.
+   */
+  const titlar: { titel: svtplay.SvtTitel; nyhetsplats?: number }[] = [];
+
   for (const u of urval) {
-    titlar.push(...(await svtplay.hamtaUrval(u)));
+    const svar = await svtplay.hamtaUrval(u);
+    for (const [plats, titel] of svar.entries()) {
+      titlar.push({ titel, nyhetsplats: u === "latest_start" ? plats : undefined });
+    }
   }
   if (full) {
-    titlar.push(...(await svtplay.hamtaAllaProgram()));
+    for (const titel of await svtplay.hamtaAllaProgram()) titlar.push({ titel });
   }
 
   if (titlar.length === 0) {
@@ -415,14 +427,25 @@ async function svtSteg(full: boolean): Promise<number> {
    * ovanligt. Slå ihop dem först, och låt sista chansen vinna: en titel som
    * står i lastchance ska flaggas även om den också råkade ligga i latest.
    */
-  const unika = new Map<string, svtplay.SvtTitel>();
-  for (const t of titlar) {
-    const befintlig = unika.get(t.vag);
-    if (!befintlig) unika.set(t.vag, t);
-    else if (t.sistaChansen) unika.set(t.vag, { ...befintlig, sistaChansen: true });
+  const unika = new Map<string, { titel: svtplay.SvtTitel; nyhetsplats?: number }>();
+  for (const post of titlar) {
+    const befintlig = unika.get(post.titel.vag);
+    if (!befintlig) {
+      unika.set(post.titel.vag, post);
+      continue;
+    }
+    unika.set(post.titel.vag, {
+      titel: {
+        ...befintlig.titel,
+        sistaChansen: befintlig.titel.sistaChansen || post.titel.sistaChansen,
+      },
+      // Låg plats vinner: hamnar titeln i både latest och popular är det
+      // latest-platsen som betyder något.
+      nyhetsplats: minsta(befintlig.nyhetsplats, post.nyhetsplats),
+    });
   }
 
-  for (const t of unika.values()) {
+  for (const { titel: t, nyhetsplats } of unika.values()) {
     const id = `svt:${t.vag}`;
     await sql`
       insert into titel (id, typ, namn, poster, synopsis, extern_url)
@@ -435,15 +458,25 @@ async function svtSteg(full: boolean): Promise<number> {
         uppdaterad_at = now()
     `;
     await sql`
-      insert into tillganglig (titel_id, tjanst_id, sista_chansen)
-      values (${id}, 'svtplay', ${t.sistaChansen})
+      insert into tillganglig (titel_id, tjanst_id, sista_chansen, nyhet_at, nyhet_rank)
+      values (${id}, 'svtplay', ${t.sistaChansen},
+              ${nyhetsplats === undefined ? null : new Date()}, ${nyhetsplats ?? null})
       on conflict (titel_id, tjanst_id) do update set
         sedd_sist     = now(),
-        sista_chansen = excluded.sista_chansen
+        sista_chansen = excluded.sista_chansen,
+        nyhet_at      = coalesce(tillganglig.nyhet_at, excluded.nyhet_at),
+        nyhet_rank    = coalesce(tillganglig.nyhet_rank, excluded.nyhet_rank)
     `;
   }
 
   return unika.size;
+}
+
+/** Minsta av två platser, där odefinierad betyder "ingen plats alls". */
+function minsta(a?: number, b?: number): number | undefined {
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  return Math.min(a, b);
 }
 
 /* ------------------------------------------------------------------ TMDB */
@@ -479,26 +512,73 @@ async function tmdbSteg(): Promise<number> {
 
       const titlar = await tmdb.hamtaKatalog([provider], typ).catch(() => []);
       for (const titel of titlar) {
-        const id = `tmdb:${typ}:${titel.tmdbId}`;
-        await sql`
-          insert into titel (id, tmdb_id, typ, namn, ar, poster, synopsis, betyg)
-          values (${id}, ${titel.tmdbId}, ${typ}, ${titel.namn}, ${titel.ar},
-                  ${titel.poster}, ${titel.synopsis}, ${titel.betyg})
-          on conflict (id) do update set
-            namn = excluded.namn, poster = excluded.poster,
-            synopsis = excluded.synopsis, betyg = excluded.betyg,
-            uppdaterad_at = now()
-        `;
-        await sql`
-          insert into tillganglig (titel_id, tjanst_id) values (${id}, ${t.id})
-          on conflict (titel_id, tjanst_id) do update set sedd_sist = now()
-        `;
+        await sparaTitel(titel, typ, t.id);
         antal++;
+      }
+
+      /*
+       * Nyheterna hämtas separat och skrivs efter katalogen, så att nyhet_at
+       * sätts på rader som just skapats av loopen ovan. Ordningen från TMDB
+       * bevaras som nyhet_rank — titlar från samma körning delar tidsstämpel,
+       * och utan rangen faller de tillbaka på insättningsordning.
+       */
+      const nya = await tmdb.hamtaNyheter([provider], typ).catch(() => []);
+      for (const [plats, titel] of nya.entries()) {
+        await sparaTitel(titel, typ, t.id, plats);
       }
     }
   }
 
   return antal;
+}
+
+/**
+ * Skriver en TMDB-titel och kopplingen till tjänsten.
+ *
+ * `nyhetsplats` sätts bara när raden kommer ur nyhetslistan. Katalogloopen
+ * lämnar den odefinierad, och då rörs varken nyhet_at eller nyhet_rank — en
+ * massimport ska aldrig kunna se ut som en nyhet.
+ */
+async function sparaTitel(
+  titel: tmdb.TmdbTitel,
+  typ: "film" | "serie",
+  tjanstId: string,
+  nyhetsplats?: number,
+): Promise<void> {
+  const id = `tmdb:${typ}:${titel.tmdbId}`;
+
+  await sql`
+    insert into titel (id, tmdb_id, typ, namn, ar, poster, synopsis, betyg, genre)
+    values (${id}, ${titel.tmdbId}, ${typ}, ${titel.namn}, ${titel.ar},
+            ${titel.poster}, ${titel.synopsis}, ${titel.betyg}, ${titel.genrer})
+    on conflict (id) do update set
+      namn = excluded.namn, poster = excluded.poster,
+      synopsis = excluded.synopsis, betyg = excluded.betyg,
+      -- Genrerna skrivs bara över när det nya svaret faktiskt har några.
+      -- Ett tomt svar ska inte tömma en titel som redan var kategoriserad.
+      genre = case when cardinality(excluded.genre) > 0 then excluded.genre else titel.genre end,
+      uppdaterad_at = now()
+  `;
+
+  if (nyhetsplats === undefined) {
+    await sql`
+      insert into tillganglig (titel_id, tjanst_id) values (${id}, ${tjanstId})
+      on conflict (titel_id, tjanst_id) do update set sedd_sist = now()
+    `;
+    return;
+  }
+
+  await sql`
+    insert into tillganglig (titel_id, tjanst_id, nyhet_at, nyhet_rank)
+    values (${id}, ${tjanstId}, now(), ${nyhetsplats})
+    on conflict (titel_id, tjanst_id) do update set
+      sedd_sist = now(),
+      -- Nyhetsstämpeln sätts en gång och står kvar. Att skriva om den vid varje
+      -- körning skulle hålla samma titel överst i "Nytt i paketet" i tre
+      -- månader, så länge den ligger kvar i TMDB:s datumfönster.
+      nyhet_at   = coalesce(tillganglig.nyhet_at, now()),
+      nyhet_rank = coalesce(tillganglig.nyhet_rank, ${nyhetsplats})
+  `;
 }
 
 /* --------------------------------------------------------------- städning */

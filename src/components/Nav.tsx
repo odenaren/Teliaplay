@@ -12,7 +12,7 @@ const FLIKAR = [
   { href: "/", label: "Start", ikon: "▤" },
   { href: "/sport", label: "Sport", ikon: "◍" },
   { href: "/tabla", label: "Tablå", ikon: "◷" },
-  { href: "/film", label: "Film", ikon: "▶" },
+  { href: "/bladdra", label: "Bläddra", ikon: "▶" },
   { href: "/sok", label: "Sök", ikon: "◎" },
 ];
 

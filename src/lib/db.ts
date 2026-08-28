@@ -337,6 +337,27 @@ alter table sportmatch add column if not exists tjanst_id text;
 alter table titel add column if not exists extern_url text;
 alter table tillganglig add column if not exists sista_chansen boolean not null default false;
 
+-- Genrer, för att kunna bläddra i katalogen i stället för att bara söka i den.
+-- Text[] och inte en egen tabell: en titel har två eller tre genrer, aldrig
+-- trettio, och en join för det vore en tabell att hålla i huvudet utan vinst.
+alter table titel add column if not exists genre text[] not null default '{}';
+
+-- När titeln dök upp som NY hos tjänsten, och var i tjänstens egen ordning.
+--
+-- Det här ersätter sedd_forst som underlag för "Nytt i paketet", och skälet är
+-- ett fel som gick att se i appen: A-Ö-listan från SVT skrivs in i bokstavs-
+-- ordning vid den dygnsvisa körningen, alla rader får sedd_forst = nu, och en
+-- sortering på den ger ett alfabetiskt block — trettio program som alla börjar
+-- på F, presenterade som veckans nyheter. sedd_forst svarar på "när såg VI den
+-- först", vilket är något helt annat än "när blev den ny".
+--
+-- Bara källor som faktiskt VET sätter fältet: SVT:s latest_start och TMDB:s
+-- datumfiltrerade discover. En massimport lämnar det null och kan därför aldrig
+-- läcka in bland nyheterna. nyhet_rank bevarar källans egen ordning, så att
+-- titlar från samma körning inte faller tillbaka på insättningsordning.
+alter table tillganglig add column if not exists nyhet_at timestamptz;
+alter table tillganglig add column if not exists nyhet_rank integer;
+
 -- ----------------------------------------------------------------- index
 create index if not exists program_start_idx on program (start);
 create index if not exists program_kanal_start_idx on program (kanal_id, start);

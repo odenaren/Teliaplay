@@ -1,4 +1,4 @@
-import { klockan, dagEtikett, tvDayKey, relativt } from "@/lib/time";
+import { klockan, dagEtikettFor, relativt } from "@/lib/time";
 import { Bricka } from "./Bricka";
 import { SpelaKnapp } from "./SpelaKnapp";
 import type { MatchVy } from "@/lib/types";
@@ -17,7 +17,7 @@ export function MatchKort({ match }: { match: MatchVy }) {
     <article className="flex items-start gap-3 border-b border-line/60 py-3 last:border-0">
       <div className="w-16 shrink-0">
         <div className="text-[13px] tabular-nums">{klockan(match.start)}</div>
-        <div className="text-[10px] text-muted">{dagEtikett(tvDayKey(match.start))}</div>
+        <div className="text-[10px] text-muted">{dagEtikettFor(match.start)}</div>
       </div>
 
       <div className="min-w-0 flex-1">

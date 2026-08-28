@@ -237,6 +237,22 @@ export async function sportITablan(dagar = 3): Promise<ProgramVy[]> {
 
 /* ----------------------------------------------------------- film & serier */
 
+/**
+ * Nytt i paketet.
+ *
+ * Bygger på `nyhet_at`, som bara sätts av källor som FAKTISKT vet: SVT:s
+ * latest_start och TMDB:s datumfiltrerade discover. Tidigare stod här
+ * `sedd_forst`, alltså när vi råkade skriva in raden — och den dagen SVT:s
+ * A-Ö-lista importerades i klump blev alla rader lika nya på en gång.
+ * Sorteringen föll då tillbaka på insättningsordningen, som är alfabetisk, och
+ * blocket fylldes med program som alla började på samma bokstav.
+ *
+ * `nyhet_rank` är källans egen ordning och avgör inom samma körning, eftersom
+ * de raderna delar tidsstämpel ner till millisekunden.
+ *
+ * Affischkravet är medvetet: det här är en rad man bläddrar i med ögat. En
+ * titel utan bild hör hemma i sökningen, inte i en bildrad.
+ */
 export async function nyttIPaketet(antal = 24): Promise<TitelVy[]> {
   await ensureSchema();
 
@@ -246,9 +262,76 @@ export async function nyttIPaketet(antal = 24): Promise<TitelVy[]> {
     from titel t
     join tillganglig a on a.titel_id = t.id
     join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true
-    where a.sedd_forst > now() - interval '30 days'
+    where a.nyhet_at is not null
+      and a.nyhet_at > now() - interval '60 days'
+      and t.poster is not null
     group by t.id
-    order by min(a.sedd_forst) desc, t.betyg desc nulls last
+    order by max(a.nyhet_at) desc, min(a.nyhet_rank) asc nulls last, t.betyg desc nulls last
+    limit ${antal}
+  `;
+}
+
+/**
+ * Titlar i en genre, det bästa först.
+ *
+ * Sorteringen är betyg och inte popularitet, och det är ett val: popularitet
+ * gör varje genre till samma tio titlar man redan sett omtalade. Betyg lyfter
+ * det man missade. Titlar utan betyg hamnar sist i stället för att försvinna —
+ * SVT:s eget material har sällan något betyg alls.
+ */
+export async function titlarIGenre(genreId: string, antal = 20): Promise<TitelVy[]> {
+  await ensureSchema();
+
+  return sql<TitelVy[]>`
+    select t.*, array_agg(a.tjanst_id) as tjanster,
+           min(a.sedd_forst) as sedd_forst, max(a.sedd_sist) as sedd_sist
+    from titel t
+    join tillganglig a on a.titel_id = t.id
+    join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true
+    where ${genreId} = any(t.genre)
+      and t.poster is not null
+    group by t.id
+    order by t.betyg desc nulls last, t.namn
+    limit ${antal}
+  `;
+}
+
+/**
+ * Vilka genrer som har tillräckligt med innehåll för att vara värda en rad.
+ *
+ * En rubrik med två titlar under sig ser ut som ett fel. Tröskeln gör att
+ * bläddringssidan bara visar rader som går att bläddra i.
+ */
+export async function genrerMedInnehall(minst = 4): Promise<{ genre: string; antal: number }[]> {
+  await ensureSchema();
+
+  return sql<{ genre: string; antal: number }[]>`
+    select g as genre, count(distinct t.id)::int as antal
+    from titel t
+    cross join lateral unnest(t.genre) as g
+    join tillganglig a on a.titel_id = t.id
+    join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true
+    where t.poster is not null
+    group by g
+    having count(distinct t.id) >= ${minst}
+    order by count(distinct t.id) desc
+  `;
+}
+
+/** Titlar hos en enskild tjänst. Raden man går till när man vet var man vill leta. */
+export async function titlarHosTjanst(tjanstId: string, antal = 20): Promise<TitelVy[]> {
+  await ensureSchema();
+
+  return sql<TitelVy[]>`
+    select t.*, array_agg(a2.tjanst_id) as tjanster,
+           min(a2.sedd_forst) as sedd_forst, max(a2.sedd_sist) as sedd_sist
+    from titel t
+    join tillganglig a on a.titel_id = t.id and a.tjanst_id = ${tjanstId}
+    join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true
+    join tillganglig a2 on a2.titel_id = t.id
+    where t.poster is not null
+    group by t.id
+    order by t.betyg desc nulls last, t.namn
     limit ${antal}
   `;
 }

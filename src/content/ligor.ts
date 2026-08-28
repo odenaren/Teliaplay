@@ -11,6 +11,18 @@
  * TheSportsDB är crowdsourcad. Ett lag kan byta id när någon städar i registret,
  * och därför sparas lagets namn tillsammans med id:t — hittas inte id:t nästa
  * gång görs en namnuppslagning i stället för att laget tyst försvinner.
+ *
+ * ID:NA HÄR ÄR GENVÄGAR, INTE FACIT.
+ *
+ * Allsvenskan och Bundesliga stod länge båda som 4331, vilket inte kan stämma
+ * för två olika ligor — följden var att man valde den ena och fick den andras
+ * lag. Ett fel som det syns inte i koden och inte i en typkontroll; det syns
+ * bara för den som väljer sin liga och får fel lag.
+ *
+ * Därför bygger favoritlagsväljaren inte längre på den här listan. Den söker
+ * på lagnamn, och ligan är en genväg som kontrolleras mot svaret
+ * (sources/sportsdb.ts). Stämmer id:t inte säger appen det i stället för att
+ * visa fel lag under rätt rubrik.
  */
 
 export interface Liga {
@@ -28,7 +40,11 @@ export interface Liga {
 }
 
 export const LIGOR: Liga[] = [
-  { id: "allsvenskan", namn: "Allsvenskan", sport: "fotboll", sportsdbId: "4331", tablaOrd: ["allsvenskan"] },
+  // 4347 är INTE verifierat mot API:et — källorna gick inte att nå från miljön
+  // där ändringen gjordes. Det gamla värdet (4331) var bevisligen fel, eftersom
+  // Bundesliga har det. Stämmer inte 4347 heller säger väljaren det rakt ut och
+  // namnsökningen fungerar ändå. Kör `npm run probe -- sportsdb` för att fastställa.
+  { id: "allsvenskan", namn: "Allsvenskan", sport: "fotboll", sportsdbId: "4347", tablaOrd: ["allsvenskan"] },
   { id: "superettan", namn: "Superettan", sport: "fotboll", sportsdbId: "4403", tablaOrd: ["superettan"] },
   { id: "damallsvenskan", namn: "Damallsvenskan", sport: "fotboll", sportsdbId: "4816", tablaOrd: ["damallsvenskan"] },
   { id: "premier-league", namn: "Premier League", sport: "fotboll", sportsdbId: "4328", tablaOrd: ["premier league", "england"] },
