@@ -23,6 +23,61 @@ import { kanalNyckel } from "@/content/kanaler";
 
 const BAS = "https://web-api.tv.nu";
 
+/*
+ * tv.nu kräver en `modules`-parameter, och säger det bara när den saknas:
+ *
+ *   {"meta":{"status":400,"code":"E_VALIDATION",
+ *            "message":"modules: Detta fält är obligatoriskt"}}
+ *
+ * Vilka värden den godtar står ingenstans — API:et är odokumenterat, och
+ * felmeddelandet räknar inte upp alternativen. Att gissa ett värde och
+ * hårdkoda det vore att bygga in nästa tysta haveri: gissar vi fel får vi
+ * samma 400 igen, utan att någon förstår varför.
+ *
+ * Därför provar adaptern kandidaterna i tur och ordning och KOMMER IHÅG den
+ * som fungerade, så att det kostar ett extra anrop en gång per process och
+ * inte ett per hämtning. Fungerar ingen kastas det sista felet med svarets
+ * egen text, som då är det bästa underlaget som finns.
+ */
+const MODULKANDIDATER: Record<string, string[]> = {
+  kanaler: ["channels", "tableauLinearChannels", "tableau", "linearChannels", "all"],
+  tabla: ["broadcasts", "schedule", "programs", "tableau", "all"],
+};
+
+const fungerandeModul: Record<string, string | undefined> = {};
+
+/**
+ * Hämtar med `modules` ifyllt, och lär sig vilket värde värden godtar.
+ *
+ * `bygg` får värdet och returnerar hela adressen, eftersom parametern ska in
+ * bland de andra och inte alltid sist.
+ */
+async function medModul(sort: keyof typeof MODULKANDIDATER, bygg: (modul: string) => string) {
+  const kant = fungerandeModul[sort];
+  const kandidater = kant ? [kant] : MODULKANDIDATER[sort];
+
+  let sistaFel: unknown;
+  for (const modul of kandidater) {
+    try {
+      const svar = await fetchJson(bygg(modul));
+      if (fungerandeModul[sort] !== modul) {
+        console.log(`[tv.nu] modules=${modul} fungerar för ${sort}`);
+        fungerandeModul[sort] = modul;
+      }
+      return svar;
+    } catch (err) {
+      sistaFel = err;
+      // Ett 400 betyder fel modulnamn — prova nästa. Allt annat (403, 500,
+      // nätverksfel) är inte något ett annat modulnamn löser.
+      if (!(err instanceof Error) || !/HTTP 400/.test(err.message)) throw err;
+    }
+  }
+
+  // Glöm det inlärda värdet: slutade det fungera ska nästa körning prova om.
+  fungerandeModul[sort] = undefined;
+  throw sistaFel;
+}
+
 export interface TvnuKanal {
   id: string;
   namn: string;
@@ -52,8 +107,12 @@ export async function hamtaKanaler(): Promise<TvnuKanal[]> {
   const limit = 12;
 
   for (let offset = 0; offset < 400; offset += limit) {
-    const url = `${BAS}/tableauLinearChannels?date=${idag()}&limit=${limit}&offset=${offset}`;
-    const svar = await fetchJson(url);
+    const svar = await medModul(
+      "kanaler",
+      (modul) =>
+        `${BAS}/tableauLinearChannels?date=${idag()}&limit=${limit}&offset=${offset}` +
+        `&modules=${encodeURIComponent(modul)}`,
+    );
     const sida = kanalerUr(svar);
     ut.push(...sida);
     if (sida.length < limit) break;
@@ -86,8 +145,12 @@ function kanalerUr(svar: unknown): TvnuKanal[] {
 
 /** En kanals sändningar för ett datum ("2026-08-22"). */
 export async function hamtaTabla(kanalId: string, datum: string): Promise<TvnuProgram[]> {
-  const url = `${BAS}/channels/${encodeURIComponent(kanalId)}/schedule?date=${datum}&fullDay=true`;
-  const svar = await fetchJson(url);
+  const svar = await medModul(
+    "tabla",
+    (modul) =>
+      `${BAS}/channels/${encodeURIComponent(kanalId)}/schedule?date=${datum}&fullDay=true` +
+      `&modules=${encodeURIComponent(modul)}`,
+  );
   return programUr(svar);
 }
 

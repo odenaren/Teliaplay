@@ -107,11 +107,23 @@ export async function hamtaAllt(djup: "snabb" | "full" = "snabb"): Promise<Samma
   steg.push(await kor("sport", sportSteg));
   steg.push(await kor("matchning", matchningsSteg));
 
-  steg.push(await kor("svt play", () => svtSteg(djup === "full")));
-
+  /*
+   * TMDB FÖRE SVT, och det är inte godtyckligt.
+   *
+   * Stegen kördes tvärtom, och SVT:s A-Ö-import — tusentals titlar vid den
+   * dygnsvisa körningen — tog så lång tid att katalogsteget efter den knappt
+   * hann köras innan nästa omstart. I drift syntes det som att `tmdb` stod
+   * kvar på "13 tim sedan" medan allt före den var minuter gammalt, och appen
+   * var tom på film utan att något var trasigt.
+   *
+   * Det som användaren faktiskt öppnar appen för går först. Sökbarheten i
+   * SVT:s A-Ö-lista är värdefull men får vänta.
+   */
   if (djup === "full") {
     steg.push(await kor("tmdb", tmdbSteg));
   }
+
+  steg.push(await kor("svt play", () => svtSteg(djup === "full")));
 
   steg.push(await kor("städning", stadning));
 
@@ -466,11 +478,46 @@ async function svtSteg(full: boolean): Promise<number> {
     });
   }
 
-  for (const { titel: t, nyhetsplats } of unika.values()) {
-    const id = `svt:${t.vag}`;
+  /*
+   * Skrivs i klump, inte en rad i taget.
+   *
+   * Det här var två anrop per titel. Vid den dygnsvisa körningen är A-Ö-listan
+   * tusentals titlar, alltså tiotusentals tur och retur till en databas som
+   * ligger i ett annat land — och varje sådan resa kostar mer än själva
+   * skrivningen. Steget tog så lång tid att det som låg efter det i kedjan
+   * knappt hann köras.
+   *
+   * Femhundra rader per sats är valt för att hålla sig långt under Postgres
+   * gräns på 65535 bindningar per sats: sex kolumner gånger femhundra är
+   * tretusen.
+   */
+  await sparaSvtTitlar([...unika.values()]);
+
+  return unika.size;
+}
+
+/**
+ * Skriver SVT-titlarna och deras koppling till svtplay.
+ *
+ * Ligger utanför svtSteg för att kunna köras mot en riktig databas i ett test
+ * utan att SVT behöver vara nåbart. En flerradsinsert med konfliktklausul är
+ * precis den sortens sats som ser rätt ut och skriver fel kolumn.
+ */
+export async function sparaSvtTitlar(
+  poster: { titel: svtplay.SvtTitel; nyhetsplats?: number }[],
+): Promise<void> {
+  for (const klump of klumpar(poster, 500)) {
+    const titelrader = klump.map(({ titel: t }) => ({
+      id: `svt:${t.vag}`,
+      typ: t.typ,
+      namn: t.namn,
+      poster: t.bild,
+      synopsis: t.synopsis,
+      extern_url: svtplay.svtplayUrl(t.vag),
+    }));
+
     await sql`
-      insert into titel (id, typ, namn, poster, synopsis, extern_url)
-      values (${id}, ${t.typ}, ${t.namn}, ${t.bild}, ${t.synopsis}, ${svtplay.svtplayUrl(t.vag)})
+      insert into titel ${sql(titelrader, "id", "typ", "namn", "poster", "synopsis", "extern_url")}
       on conflict (id) do update set
         namn     = excluded.namn,
         poster   = coalesce(excluded.poster, titel.poster),
@@ -478,10 +525,24 @@ async function svtSteg(full: boolean): Promise<number> {
         extern_url = excluded.extern_url,
         uppdaterad_at = now()
     `;
+
+    const kopplingar = klump.map(({ titel: t, nyhetsplats }) => ({
+      titel_id: `svt:${t.vag}`,
+      tjanst_id: "svtplay",
+      sista_chansen: t.sistaChansen,
+      nyhet_at: nyhetsplats === undefined ? null : new Date(),
+      nyhet_rank: nyhetsplats ?? null,
+    }));
+
     await sql`
-      insert into tillganglig (titel_id, tjanst_id, sista_chansen, nyhet_at, nyhet_rank)
-      values (${id}, 'svtplay', ${t.sistaChansen},
-              ${nyhetsplats === undefined ? null : new Date()}, ${nyhetsplats ?? null})
+      insert into tillganglig ${sql(
+        kopplingar,
+        "titel_id",
+        "tjanst_id",
+        "sista_chansen",
+        "nyhet_at",
+        "nyhet_rank",
+      )}
       on conflict (titel_id, tjanst_id) do update set
         sedd_sist     = now(),
         sista_chansen = excluded.sista_chansen,
@@ -489,8 +550,13 @@ async function svtSteg(full: boolean): Promise<number> {
         nyhet_rank    = coalesce(tillganglig.nyhet_rank, excluded.nyhet_rank)
     `;
   }
+}
 
-  return unika.size;
+/** Delar en lista i bitar av högst `storlek`. */
+function klumpar<T>(lista: T[], storlek: number): T[][] {
+  const ut: T[][] = [];
+  for (let i = 0; i < lista.length; i += storlek) ut.push(lista.slice(i, i + storlek));
+  return ut;
 }
 
 /** Minsta av två platser, där odefinierad betyder "ingen plats alls". */
