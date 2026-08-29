@@ -1,6 +1,12 @@
 import { tjansterMedStatus, kanalerMedStatus, omatchadeKanaler } from "@/lib/queries";
 import { hasDatabase } from "@/lib/db";
-import { vaxlaTjanst, vaxlaKanal, kopplaKanal, kryssaPaket } from "@/app/actions";
+import {
+  vaxlaTjanst,
+  vaxlaKanal,
+  kopplaKanal,
+  kryssaPaket,
+  vaxlaOmfattning,
+} from "@/app/actions";
 import { PAKET } from "@/content/paket";
 import { TJANSTER } from "@/content/tjanster";
 import { StartGuide } from "@/components/StartGuide";
@@ -96,6 +102,35 @@ export default async function Ingar() {
             </form>
           ))}
         </div>
+
+        {/*
+          Finstilta, med Telias egna ord.
+
+          Det är HÄR paketets verkliga innehåll står: att Viaplay bara är
+          sporten, att TV4 Play bara är fotbollen. Utan de raderna ser knappen
+          ut att kryssa i fem hela tjänster, vilket är precis det missförstånd
+          som fick appen att visa hundratals filmer som inte gick att spela.
+        */}
+        {PAKET.map((p) => (
+          <dl key={p.id} className="mt-3 space-y-1 text-[11px] leading-relaxed">
+            {p.tjanster
+              .filter((t) => t.anmarkning)
+              .map((t) => (
+                <div key={t.id} className="flex gap-2">
+                  <dt className="shrink-0 text-muted">
+                    {TJANSTER.find((x) => x.id === t.id)?.namn ?? t.id}
+                  </dt>
+                  <dd className={t.omfattning === "sport" ? "text-sport" : "text-muted"}>
+                    {t.anmarkning}
+                  </dd>
+                </div>
+              ))}
+            <p className="pt-1 text-[10px] text-muted">
+              Avskrivet {p.avskrivet} från {p.kalla}. Telia ändrar sina paket — stäm av mot deras
+              app om något ser fel ut.
+            </p>
+          </dl>
+        ))}
       </section>
 
       {omatchade.length > 0 && (
@@ -148,6 +183,9 @@ export default async function Ingar() {
                     : rad.kalla === "auto"
                       ? "fri kanal, ingår alltid"
                       : "ikryssad av dig"}
+                  {rad.ingar && rad.omfattning === "sport" && (
+                    <span className="text-sport"> · bara sport</span>
+                  )}
                 </p>
               </div>
 
@@ -162,6 +200,35 @@ export default async function Ingar() {
                 </button>
               </form>
             </header>
+
+            {/*
+              Sportnivå eller hela tjänsten.
+
+              Visas bara för tjänster som HAR en filmkatalog — för en ren
+              kanaltjänst är frågan meningslös. "Bara sport" betyder att
+              matcherna och kanalerna ingår men att katalogen inte hämtas och
+              inte visas: det är skillnaden mellan att ha Viaplay och att kunna
+              se Viaplays filmer.
+            */}
+            {rad.ingar && def.tmdbProvider && (
+              <div className="flex items-center gap-2 border-b border-line px-3 py-2 text-[11px]">
+                <span className="text-muted">Ingår:</span>
+                {(["allt", "sport"] as const).map((v) => (
+                  <form key={v} action={vaxlaOmfattning.bind(null, def.id, v)}>
+                    <button
+                      type="submit"
+                      className={`rounded-full border px-2 py-0.5 transition-colors ${
+                        rad.omfattning === v
+                          ? "border-accent bg-accent/15 text-accent"
+                          : "border-line text-muted hover:text-text"
+                      }`}
+                    >
+                      {v === "allt" ? "hela tjänsten" : "bara sport"}
+                    </button>
+                  </form>
+                ))}
+              </div>
+            )}
 
             {rad.ingar && mina.length > 0 && (
               <div className="flex flex-wrap gap-1.5 px-3 py-2.5">

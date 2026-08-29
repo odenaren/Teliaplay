@@ -32,7 +32,12 @@
 import { fetchJson, plocka } from "./http";
 import { sql } from "../db";
 
-const LOGIN = "https://logingateway-telia.clientapi-prod.live.tv.telia.net/logingateway/rest/v1";
+// Går att peka om, så att inloggningskedjans regler kan provas mot en server
+// som beter sig som Telia. Regeln "bara 400 leder vidare" är den enda som
+// skyddar kontot från att låsas, och en sådan regel ska bevisas, inte påstås.
+const LOGIN =
+  process.env.TELIA_LOGIN_BAS ??
+  "https://logingateway-telia.clientapi-prod.live.tv.telia.net/logingateway/rest/v1";
 const OTT = "https://ottapi.prod.telia.net/web";
 const LAND = process.env.TELIA_COUNTRY ?? "se";
 
@@ -86,13 +91,7 @@ async function logaIn(): Promise<Session> {
 
   const device = await deviceId();
 
-  const auth = await fetchJson(`${LOGIN}/authenticate`, {
-    method: "POST",
-    body: { username, password, deviceId: device },
-    // Ett fel lösenord är inte något att försöka igen med — tre försök i rad
-    // med fel uppgifter är ett bra sätt att bli utelåst.
-    attempts: 1,
-  }).catch(snalltFel("authenticate"));
+  const auth = await autentisera(username, password, device);
 
   const code = plocka(auth, "authorizationCode", "code", "data.authorizationCode");
   if (typeof code !== "string") {
@@ -134,6 +133,92 @@ async function logaIn(): Promise<Session> {
 
   await sparaSession(session);
   return session;
+}
+
+/**
+ * Steg ett i inloggningen, med flera kända kroppsformer.
+ *
+ * BAKGRUND. Telia svarar
+ *
+ *   HTTP 400 {"errorMessage":"Missing param","errorCode":"9050", ...}
+ *
+ * alltså: anropet saknar ett obligatoriskt fält. VILKET fält säger de inte,
+ * och API:et är varken publikt eller dokumenterat. Formen nedan är kartlagd ur
+ * Kodi-tillägget plugin.video.teliaplay och har fungerat, men Telia ändrar sitt
+ * gränssnitt utan att berätta det för någon.
+ *
+ * SÄKERHETSREGELN, och den är viktigare än funktionen:
+ *
+ *   Bara ett 400 leder vidare till nästa variant.
+ *
+ * Ett 400 är ett formatfel — anropet nådde aldrig fram till någon kontroll av
+ * användarnamn och lösenord, och räknas därför inte som ett inloggningsförsök.
+ * Ett 401, 403 eller 429 betyder att uppgifterna FAKTISKT prövades, och då
+ * avbryts allt omedelbart. Att prova vidare där vore att låsa ditt Telia-konto
+ * för att spara dig tio minuters kryssande på /ingar — ett uselt byte.
+ *
+ * Misslyckas alla varianter berättar felet vad var och en svarade. Skiljer sig
+ * ett svar från de andra är det den varianten som är närmast rätt, och nästa
+ * person slipper börja om från noll.
+ */
+async function autentisera(username: string, password: string, device: string): Promise<unknown> {
+  const varianter: { namn: string; kropp: Record<string, unknown> }[] = [
+    { namn: "bas", kropp: { username, password, deviceId: device } },
+    {
+      namn: "deviceType",
+      kropp: { username, password, deviceId: device, deviceType: "WEB" },
+    },
+    {
+      namn: "land",
+      kropp: {
+        username,
+        password,
+        deviceId: device,
+        deviceType: "WEB",
+        country: LAND.toUpperCase(),
+      },
+    },
+    {
+      namn: "nästlad",
+      kropp: {
+        credentials: { username, password },
+        deviceId: device,
+        deviceType: "WEB",
+      },
+    },
+  ];
+
+  const utfall: string[] = [];
+
+  for (const variant of varianter) {
+    try {
+      return await fetchJson(`${LOGIN}/authenticate`, {
+        method: "POST",
+        body: variant.kropp,
+        // Ett fel lösenord är inte något att försöka igen med — tre försök i
+        // rad med fel uppgifter är ett bra sätt att bli utelåst.
+        attempts: 1,
+      });
+    } catch (err) {
+      const rad = err instanceof Error ? err.message : String(err);
+
+      // ENDAST formatfel går vidare. Allt annat betyder att uppgifterna
+      // prövades, och då rör vi dem inte igen.
+      if (!/HTTP 400/.test(rad)) return snalltFel("authenticate")(err);
+
+      utfall.push(`${variant.namn}: ${kort(rad)}`);
+    }
+  }
+
+  return snalltFel("authenticate")(
+    new Error(`HTTP 400 — ingen känd form godtogs. ${utfall.join(" | ")}`),
+  );
+}
+
+/** Kortar ett felsvar till det som skiljer varianterna åt. */
+function kort(rad: string): string {
+  const meddelande = rad.match(/"errorMessage":"([^"]+)"/)?.[1];
+  return meddelande ?? rad.replace(/^HTTP \d{3}\s*—?\s*/, "").slice(0, 60);
 }
 
 async function sparaSession(s: Session): Promise<void> {

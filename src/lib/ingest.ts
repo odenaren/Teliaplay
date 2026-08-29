@@ -579,13 +579,25 @@ function minsta(a?: number, b?: number): number | undefined {
  * på.
  */
 async function tmdbSteg(): Promise<number> {
-  const tjanster = await sql<{ id: string }[]>`select id from tjanst where ingar = true`;
+  /*
+   * Bara tjänster där HELA utbudet ingår.
+   *
+   * En sportnivå — Viaplay Sport, TV4 Play Sport Fotboll — ger rätt till
+   * matcherna, inte till filmkatalogen. Att hämta den ändå vore att fylla
+   * databasen med titlar som aldrig får visas, och det billigaste sättet att
+   * aldrig visa fel sak är att aldrig hämta den.
+   */
+  const tjanster = await sql<{ id: string }[]>`
+    select id from tjanst where ingar = true and omfattning = 'allt'
+  `;
   const providers = tjanster
     .map((t) => TJANSTER.find((x) => x.id === t.id)?.tmdbProvider)
     .filter((p): p is number => typeof p === "number");
 
   if (providers.length === 0) {
-    throw new Error("inga tjänster med TMDB-provider ingår — hoppar över katalogen");
+    throw new Error(
+      "ingen tjänst med hela utbudet ingår — bara sportnivåer, och de har ingen katalog att hämta",
+    );
   }
 
   let antal = 0;

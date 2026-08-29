@@ -133,14 +133,31 @@ export async function kryssaPaket(paketId: string): Promise<void> {
   const p = paket(paketId);
   if (!p) return;
 
-  for (const tjanstId of p.tjanster) {
+  for (const t of p.tjanster) {
+    /*
+     * Omfattningen skrivs ALLTID, även för en tjänst som redan är ikryssad.
+     * Det är just den uppgiften som saknades: någon som kryssat i Viaplay för
+     * hand har den som 'allt', och paketet vet att det bara är sporten. Att
+     * lämna den orörd vore att behålla felet man tryckte på knappen för.
+     */
     await sql`
       update tjanst
-      set ingar = true, kalla = 'manuell', verifierad_at = now()
-      where id = ${tjanstId} and ingar = false
+      set ingar = true,
+          omfattning = ${t.omfattning},
+          kalla = 'manuell',
+          verifierad_at = now()
+      where id = ${t.id}
     `;
   }
 
+  revalidatePath("/ingar");
+  revalidatePath("/", "layout");
+}
+
+/** Växlar mellan hela utbudet och bara sporten för en tjänst. */
+export async function vaxlaOmfattning(id: string, omfattning: "allt" | "sport"): Promise<void> {
+  await ensureSchema();
+  await sql`update tjanst set omfattning = ${omfattning} where id = ${id}`;
   revalidatePath("/ingar");
   revalidatePath("/", "layout");
 }

@@ -7,6 +7,11 @@ export interface TjanstRad {
   kalla: string;
   verifierad_at: Date | null;
   notering: string | null;
+  /**
+   * Hur mycket av tjänsten som ingår: 'allt' eller 'sport'.
+   * En sportnivå ger matcherna men inte filmkatalogen — se content/paket.ts.
+   */
+  omfattning: "allt" | "sport";
 }
 
 export interface KanalRad {

@@ -358,6 +358,19 @@ alter table titel add column if not exists genre text[] not null default '{}';
 alter table tillganglig add column if not exists nyhet_at timestamptz;
 alter table tillganglig add column if not exists nyhet_rank integer;
 
+-- Hur MYCKET av tjänsten som ingår. 'allt' eller 'sport'.
+--
+-- Att ingå är inte en ja/nej-fråga, och det tog appen lång tid att lära sig.
+-- I Telias Stora sportpaketet ingår "Viaplay Sport utan reklam — film och
+-- serier ingår inte" och "TV4 Play Sport Fotboll". Tjänsterna står som
+-- ikryssade, och appen visade därför hela deras filmkatalog: hundratals titlar
+-- som abonnenten inte kan spela.
+--
+-- Det är precis det fel appen finns för att undvika, och den binära flaggan
+-- gjorde det omöjligt att undvika. 'sport' betyder: kanalerna och matcherna
+-- ingår, katalogen gör det inte.
+alter table tjanst add column if not exists omfattning text not null default 'allt';
+
 -- ----------------------------------------------------------------- index
 create index if not exists program_start_idx on program (start);
 create index if not exists program_kanal_start_idx on program (kanal_id, start);

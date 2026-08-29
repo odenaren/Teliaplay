@@ -237,6 +237,23 @@ export async function sportITablan(dagar = 3): Promise<ProgramVy[]> {
 
 /* ----------------------------------------------------------- film & serier */
 
+/*
+ * OM `tj.omfattning = 'allt'` I VARJE FRÅGA HÄR NEDAN.
+ *
+ * Att en tjänst ingår betyder inte att hela tjänsten gör det. I Telias Stora
+ * sportpaketet ingår "Viaplay Sport — film och serier ingår inte" och "TV4 Play
+ * Sport Fotboll", alltså sportnivåer av tjänster som också säljer film.
+ *
+ * Utan det här villkoret visade appen hela Viaplays filmkatalog för någon som
+ * bara har sporten. Det är inte en skönhetsfläck — det är exakt det appen finns
+ * för att undvika, och det värsta felet den kan göra: att tipsa om något du
+ * inte kan se.
+ *
+ * Villkoret sitter i FRÅGAN och inte bara i hämtningen, med flit. Hämtningen
+ * hindrar nya titlar från att komma in; frågan gör att titlar som redan ligger
+ * i databasen från en tidigare körning försvinner ur vyn med en gång.
+ */
+
 /**
  * Nytt i paketet.
  *
@@ -261,7 +278,7 @@ export async function nyttIPaketet(antal = 24): Promise<TitelVy[]> {
            min(a.sedd_forst) as sedd_forst, max(a.sedd_sist) as sedd_sist
     from titel t
     join tillganglig a on a.titel_id = t.id
-    join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true
+    join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true and tj.omfattning = 'allt'
     where a.nyhet_at is not null
       and a.nyhet_at > now() - interval '60 days'
       and t.poster is not null
@@ -287,7 +304,7 @@ export async function titlarIGenre(genreId: string, antal = 20): Promise<TitelVy
            min(a.sedd_forst) as sedd_forst, max(a.sedd_sist) as sedd_sist
     from titel t
     join tillganglig a on a.titel_id = t.id
-    join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true
+    join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true and tj.omfattning = 'allt'
     where ${genreId} = any(t.genre)
       and t.poster is not null
     group by t.id
@@ -310,7 +327,7 @@ export async function genrerMedInnehall(minst = 4): Promise<{ genre: string; ant
     from titel t
     cross join lateral unnest(t.genre) as g
     join tillganglig a on a.titel_id = t.id
-    join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true
+    join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true and tj.omfattning = 'allt'
     where t.poster is not null
     group by g
     having count(distinct t.id) >= ${minst}
@@ -327,7 +344,7 @@ export async function titlarHosTjanst(tjanstId: string, antal = 20): Promise<Tit
            min(a2.sedd_forst) as sedd_forst, max(a2.sedd_sist) as sedd_sist
     from titel t
     join tillganglig a on a.titel_id = t.id and a.tjanst_id = ${tjanstId}
-    join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true
+    join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true and tj.omfattning = 'allt'
     join tillganglig a2 on a2.titel_id = t.id
     where t.poster is not null
     group by t.id
@@ -361,7 +378,7 @@ export async function sistaChansen(antal = 12): Promise<TitelVy[]> {
            bool_or(a.sista_chansen) as officiell
     from titel t
     join tillganglig a on a.titel_id = t.id
-    join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true
+    join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true and tj.omfattning = 'allt'
     group by t.id
     having bool_or(a.sista_chansen)
         or (max(a.sedd_sist) < now() - interval '4 days'
@@ -381,7 +398,7 @@ export async function sokTitlar(fraga: string, antal = 40): Promise<TitelVy[]> {
            min(a.sedd_forst) as sedd_forst, max(a.sedd_sist) as sedd_sist
     from titel t
     join tillganglig a on a.titel_id = t.id
-    join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true
+    join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true and tj.omfattning = 'allt'
     where t.namn ilike ${`%${fraga}%`}
     group by t.id
     order by t.betyg desc nulls last
@@ -420,7 +437,7 @@ export async function sparat(profilId: string): Promise<{ titlar: TitelVy[]; pro
       from titel t
       join favorit f on f.ref_id = t.id and f.sort = 'titel' and f.profil_id = ${profilId}
       join tillganglig a on a.titel_id = t.id
-      join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true
+      join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true and tj.omfattning = 'allt'
       group by t.id
       order by max(f.skapad) desc
     `,
