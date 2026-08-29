@@ -223,7 +223,18 @@ export async function kopplaKanal(formData: FormData): Promise<void> {
 
   const tvnuId = String(formData.get("tvnuId") ?? "").trim();
 
-  await sql`update kanal set tvnu_id = ${tvnuId || null} where id = ${id}`;
+  /*
+   * Ett nytt id nollställer det gamla utfallet.
+   *
+   * Annars står gårdagens dom kvar över dagens id, och /ingar säger "fel id"
+   * om något som ingen ännu provat. Det var precis den lögnen som fick någon
+   * att sitta och jämföra två identiska id:n.
+   */
+  await sql`
+    update kanal
+    set tvnu_id = ${tvnuId || null}, tabla_forsokt_at = null, tabla_fel = null
+    where id = ${id}
+  `;
 
   // Sändningarna hörde till det gamla id:t. Att låta dem ligga kvar gör att en
   // felkopplad kanal ser rätt ut tills de blir gamla nog att städas bort.

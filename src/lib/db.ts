@@ -380,6 +380,16 @@ alter table tjanst add column if not exists omfattning text not null default 'al
 -- gjorde när ordningen kom osorterad ur databasen.
 alter table tjanst add column if not exists prioritet integer not null default 100;
 
+-- Vad som HÄNDE senast appen frågade tv.nu om kanalens tablå.
+--
+-- Utan de här två gick det bara att se att tablån var tom, och tomt betyder
+-- tre helt olika saker: id:t är fel, tv.nu känner igen kanalen men hade inga
+-- sändningar, eller ingen har försökt sedan du sparade id:t. /ingar påstod
+-- det första i alla tre fallen — den gissade, med bestämd röst, om något den
+-- inte visste.
+alter table kanal add column if not exists tabla_forsokt_at timestamptz;
+alter table kanal add column if not exists tabla_fel text;
+
 -- ----------------------------------------------------------------- index
 create index if not exists program_start_idx on program (start);
 create index if not exists program_kanal_start_idx on program (kanal_id, start);

@@ -307,6 +307,11 @@ async function tvnuTablaSteg(): Promise<number> {
   const felaktiga = new Set<string>();
 
   for (const kanal of kanaler) {
+    // Vad tv.nu svarade om just den här kanalen, sparat efter varje kanal så
+    // att /ingar kan säga sanningen i stället för att gissa ur en nolla.
+    let kanalfel: string | null = null;
+    let kanalrader = 0;
+
     for (const dag of dagar) {
       if (ifoljd >= TAK) {
         throw new Error(
@@ -321,15 +326,19 @@ async function tvnuTablaSteg(): Promise<number> {
         if (/HTTP 40[034]/.test(rad)) {
           // Kanalens id, inte källan. Rör inte brytaren.
           felaktiga.add(kanal.id);
+          kanalfel = `tv.nu känner inte igen id:t (${rad.slice(0, 60)})`;
           return null;
         }
 
         ifoljd++;
+        kanalfel = rad.slice(0, 80);
         return null;
       });
 
       if (program === null) continue;
       ifoljd = 0;
+      kanalrader += program.length;
+      if (program.length > 0) kanalfel = null;
 
       for (const p of program) {
         const id = `${kanal.id}:${p.start.getTime()}`;
@@ -351,6 +360,18 @@ async function tvnuTablaSteg(): Promise<number> {
         antal++;
       }
     }
+
+    await sql`
+      update kanal
+      set tabla_forsokt_at = now(),
+          tabla_fel = ${
+            kanalfel ??
+            (kanalrader === 0
+              ? "tv.nu svarade, men hade inga sändningar för kanalen"
+              : null)
+          }
+      where id = ${kanal.id}
+    `;
   }
 
   if (felaktiga.size > 0) {

@@ -27,8 +27,12 @@ export interface KanalRad {
   ingar: boolean;
   kalla: string;
   sort: number;
-  /** Sändningar i databasen det senaste dygnet. 0 = tablån är tom för kanalen. */
+  /** Sändningar i databasen det senaste dygnet. */
   program_antal?: number;
+  /** När appen senast frågade tv.nu om kanalen. null = inte sedan id:t sparades. */
+  tabla_forsokt_at: Date | null;
+  /** Vad tv.nu svarade, när svaret inte gav några sändningar. */
+  tabla_fel: string | null;
 }
 
 export interface ProgramRad {
