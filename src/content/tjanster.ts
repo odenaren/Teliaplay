@@ -70,6 +70,32 @@ export interface Tjanst {
    * Id:n skiljer sig mellan länder och uppdateringar; listan här är utgångsläget,
    * inte facit.
    */
+  /**
+   * Tjänstens URL-schema på telefonen, t.ex. "nflx://".
+   *
+   * VARFÖR: en länk till tjänstens webbplats öppnas i Safari, och Safari är
+   * inte inloggad. Appen på telefonen ÄR inloggad. Schemat är enda sättet att
+   * tvinga fram appen i stället för webbläsaren — en vanlig https-länk stannar
+   * i Safari när man redan står i Safari.
+   *
+   * OVERIFIERADE. Schemana går inte att prova från utvecklingsmiljön, och de
+   * ändras när tjänsterna släpper nya appar. Därför är de OFARLIGA att ha fel:
+   * knappen försöker öppna appen, och har ingenting hänt efter en dryg sekund
+   * går den vidare till webbadressen som förut. Ett fel schema kostar en
+   * sekund, inte en död knapp.
+   */
+  iosApp?: string;
+
+  /**
+   * Djuplänk in i telefonappen, när tjänsten har ett känt mönster.
+   *
+   * Bara Netflix har ett publikt dokumenterat sådant. För övriga öppnas appens
+   * startsida — inloggad, men utan titeln. Det är fortfarande bättre än en
+   * utloggad webbsida med rätt titel, eftersom man kan söka i en app man är
+   * inloggad i men inte titta i en sida man inte kommer in på.
+   */
+  iosTitelMonster?: string;
+
   appleTvApp?: string;
   /** App-id på Samsung Tizen. Samma förbehåll som ovan. */
   tizenApp?: string;
@@ -101,6 +127,7 @@ export const TJANSTER: Tjanst[] = [
     tvInloggning: "https://viaplay.se/tv",
     webb: "https://viaplay.se",
     titelMonster: "https://viaplay.se/product/{id}",
+    iosApp: "viaplay://",
     appleTvApp: "com.viaplay.Viaplay",
     tizenApp: "3201603005348",
   },
@@ -116,6 +143,7 @@ export const TJANSTER: Tjanst[] = [
     tvInloggning: "https://play.max.com/tvsignin",
     webb: "https://play.max.com",
     titelMonster: "https://play.max.com/video/watch/{id}",
+    iosApp: "hbomax://",
     appleTvApp: "com.wbd.stream",
     tizenApp: "3201601007230",
   },
@@ -130,6 +158,7 @@ export const TJANSTER: Tjanst[] = [
     glomtLosenord: "https://www.disneyplus.com/login/forgot-password",
     webb: "https://www.disneyplus.com",
     titelMonster: "https://www.disneyplus.com/sv-se/browse/entity-{id}",
+    iosApp: "disneyplus://",
     appleTvApp: "com.disney.disneyplus",
     tizenApp: "3201901017640",
   },
@@ -144,6 +173,7 @@ export const TJANSTER: Tjanst[] = [
     glomtLosenord: "https://www.tv4play.se/losenord",
     webb: "https://www.tv4play.se",
     titelMonster: "https://www.tv4play.se/program/{id}",
+    iosApp: "tv4play://",
     appleTvApp: "se.tv4.tv4play",
     tizenApp: "3201510005981",
   },
@@ -159,6 +189,7 @@ export const TJANSTER: Tjanst[] = [
     tvInloggning: "https://www.primevideo.com/mytv",
     webb: "https://www.primevideo.com",
     titelMonster: "https://www.primevideo.com/detail/{id}",
+    iosApp: "aiv://",
     appleTvApp: "com.amazon.aiv.AIVApp",
     tizenApp: "3201910019365",
   },
@@ -173,6 +204,7 @@ export const TJANSTER: Tjanst[] = [
     glomtLosenord: "https://www.skyshowtime.com/se/forgot-password",
     webb: "https://www.skyshowtime.com",
     titelMonster: "https://www.skyshowtime.com/se/watch/asset/{id}",
+    iosApp: "skyshowtime://",
     appleTvApp: "com.skyshowtime.skyshowtime",
     tizenApp: "3201703012079",
   },
@@ -187,6 +219,8 @@ export const TJANSTER: Tjanst[] = [
     glomtLosenord: "https://www.netflix.com/loginhelp",
     webb: "https://www.netflix.com",
     titelMonster: "https://www.netflix.com/title/{id}",
+    iosApp: "nflx://",
+    iosTitelMonster: "nflx://www.netflix.com/title/{id}",
     appleTvApp: "com.netflix.Netflix",
     tizenApp: "3201907018807",
   },
@@ -222,6 +256,7 @@ export const TJANSTER: Tjanst[] = [
     harKanaler: true,
     webb: "https://www.svtplay.se",
     titelMonster: "https://www.svtplay.se/video/{id}",
+    iosApp: "svtplay://",
     appleTvApp: "se.svt.svtplay",
     tizenApp: "3201907018484",
   },

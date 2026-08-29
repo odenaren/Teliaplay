@@ -22,6 +22,16 @@ export interface Lank {
   tjanstId: string;
   /** App-id för Apple TV, till bryggan. */
   appleTvApp?: string;
+  /**
+   * Adress som öppnar tjänstens app på telefonen i stället för webbläsaren.
+   *
+   * Poängen är inloggningen: Safari är utloggad, appen är det inte. Den som
+   * trycker Spela vill se något, inte mötas av en inloggningsruta.
+   *
+   * Kan vara fel — se iosApp i content/tjanster.ts. Därför är `url` alltid
+   * ifylld och används som fallback av knappen.
+   */
+  appUrl?: string;
 }
 
 const SOK_MONSTER: Partial<Record<TjanstId, string>> = {
@@ -44,7 +54,7 @@ export function lankTill(
   const t = tjanst(tjanstId);
   if (!t) return null;
 
-  const bas = { tjanstId, appleTvApp: t.appleTvApp };
+  const bas = { tjanstId, appleTvApp: t.appleTvApp, appUrl: appAdress(t, opts.titelId) };
 
   /*
    * En färdig adress från källan slår alltid ett mönster vi byggt själva.
@@ -63,6 +73,19 @@ export function lankTill(
   }
 
   return { ...bas, url: t.webb, niva: "start" };
+}
+
+/**
+ * Adressen som öppnar telefonappen.
+ *
+ * Med känt titelmönster går den rakt in på titeln, annars till appens
+ * startsida. Startsidan i en inloggad app slår en titelsida i en utloggad
+ * webbläsare: det första är ett steg kvar, det andra är en återvändsgränd.
+ */
+function appAdress(t: ReturnType<typeof tjanst>, titelId?: string | null): string | undefined {
+  if (!t?.iosApp) return undefined;
+  if (titelId && t.iosTitelMonster) return t.iosTitelMonster.replace("{id}", titelId);
+  return t.iosApp;
 }
 
 /** Knapptext som är ärlig om vad som faktiskt händer när du trycker. */

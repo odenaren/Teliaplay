@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { spelaPaTv } from "@/app/actions";
+import { OppnaLank } from "./OppnaLank";
 
 /**
  * Startknappen.
@@ -34,9 +35,12 @@ export function SpelaKnapp({
   liten?: boolean;
 }) {
   const [pending, start] = useTransition();
-  const [svar, setSvar] = useState<{ ok: boolean; meddelande: string; lank: string | null } | null>(
-    null,
-  );
+  const [svar, setSvar] = useState<{
+    ok: boolean;
+    meddelande: string;
+    lank: string | null;
+    appLank?: string | null;
+  } | null>(null);
 
   const tryck = () =>
     start(async () => {
@@ -57,15 +61,14 @@ export function SpelaKnapp({
       </button>
 
       {svar && !svar.ok && svar.lank && (
-        <a
-          href={svar.lank}
-          target="_blank"
-          rel="noopener noreferrer"
+        <OppnaLank
+          url={svar.lank}
+          appUrl={svar.appLank}
           className="text-[10px] text-muted underline decoration-dotted hover:text-text"
           title={svar.meddelande}
         >
-          öppna själv
-        </a>
+          {svar.appLank ? "öppna i appen" : "öppna själv"}
+        </OppnaLank>
       )}
       {svar?.ok && <span className="text-[10px] text-sport">på tv:n</span>}
     </span>

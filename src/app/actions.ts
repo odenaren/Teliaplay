@@ -214,6 +214,11 @@ export interface SpelaSvar {
   meddelande: string;
   /** Länken att falla tillbaka på när bryggan inte svarar. */
   lank: string | null;
+  /**
+   * Adress som öppnar tjänstens app på telefonen i stället för webbläsaren.
+   * null när vi inte känner till något schema för tjänsten.
+   */
+  appLank: string | null;
 }
 
 /**
@@ -235,7 +240,7 @@ export async function spelaPaTv(
   } = {},
 ): Promise<SpelaSvar> {
   const lank = lankTill(tjanstId, { url: opts.url, titelId: opts.titelId, namn: opts.namn });
-  if (!lank) return { ok: false, meddelande: "Okänd tjänst.", lank: null };
+  if (!lank) return { ok: false, meddelande: "Okänd tjänst.", lank: null, appLank: null };
 
   const profil = await aktivProfil();
   if (profil && opts.refId && opts.sort) {
@@ -247,7 +252,14 @@ export async function spelaPaTv(
   }
 
   const svar = await bryggSpela({ deeplink: lank.url, appleTvApp: lank.appleTvApp });
-  return { ok: svar.ok, meddelande: svar.meddelande, lank: lank.url };
+  return {
+    ok: svar.ok,
+    meddelande: svar.meddelande,
+    lank: lank.url,
+    // Adressen som öppnar telefonappen i stället för Safari. Knappen provar
+    // den först och faller tillbaka på lank.url om ingen app svarar.
+    appLank: lank.appUrl ?? null,
+  };
 }
 
 export async function markeraSedd(sort: string, refId: string): Promise<void> {
