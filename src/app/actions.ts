@@ -120,6 +120,32 @@ export async function laggTillLag(formData: FormData): Promise<void> {
 /* ----------------------------------------------------------- ingår-listan */
 
 /**
+ * Kryssar i alla tjänster i ett av Telias paket.
+ *
+ * Bara i, aldrig ur. Listan i content/paket.ts är avskriven från Telias app en
+ * given dag och kan vara inaktuell — och en genväg som RADERAR något du själv
+ * kryssat i vore ett sämre byte än de tio minuter den sparar.
+ */
+export async function kryssaPaket(paketId: string): Promise<void> {
+  await ensureSchema();
+
+  const { paket } = await import("@/content/paket");
+  const p = paket(paketId);
+  if (!p) return;
+
+  for (const tjanstId of p.tjanster) {
+    await sql`
+      update tjanst
+      set ingar = true, kalla = 'manuell', verifierad_at = now()
+      where id = ${tjanstId} and ingar = false
+    `;
+  }
+
+  revalidatePath("/ingar");
+  revalidatePath("/", "layout");
+}
+
+/**
  * Kryssar i eller ur en tjänst.
  *
  * Katalogen för en nyss ikryssad tjänst finns inte förrän en full hämtning

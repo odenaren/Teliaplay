@@ -1,6 +1,7 @@
 import { tjansterMedStatus, kanalerMedStatus, omatchadeKanaler } from "@/lib/queries";
 import { hasDatabase } from "@/lib/db";
-import { vaxlaTjanst, vaxlaKanal, kopplaKanal } from "@/app/actions";
+import { vaxlaTjanst, vaxlaKanal, kopplaKanal, kryssaPaket } from "@/app/actions";
+import { PAKET } from "@/content/paket";
 import { TJANSTER } from "@/content/tjanster";
 import { StartGuide } from "@/components/StartGuide";
 import Link from "next/link";
@@ -71,6 +72,30 @@ export default async function Ingar() {
             </>
           )}
         </p>
+      </section>
+
+      <section className="rounded-lg border border-line bg-surface/40 px-3 py-3">
+        <h2 className="text-[13px] font-semibold tracking-tight">Har du ett av Telias paket?</h2>
+        <p className="mt-1 text-[11px] leading-relaxed text-muted">
+          Kryssar i allt som ingår i paketet på en gång. Den tar aldrig bort något du redan
+          kryssat i — och kontrollera mot Telias egen app, för de byter innehåll utan att säga
+          till oss.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {PAKET.map((p) => (
+            <form key={p.id} action={kryssaPaket.bind(null, p.id)}>
+              <button
+                type="submit"
+                className="rounded-full border border-line px-3 py-1.5 text-[12px] transition-colors hover:border-accent/50 hover:text-accent"
+              >
+                {p.namn}
+                <span className="ml-1.5 text-[10px] text-muted">
+                  {p.tjanster.length} tjänster
+                </span>
+              </button>
+            </form>
+          ))}
+        </div>
       </section>
 
       {omatchade.length > 0 && (
