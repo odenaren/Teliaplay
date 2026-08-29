@@ -119,6 +119,13 @@ export async function laggTillLag(formData: FormData): Promise<void> {
 
 /* ----------------------------------------------------------- ingår-listan */
 
+/**
+ * Kryssar i eller ur en tjänst.
+ *
+ * Katalogen för en nyss ikryssad tjänst finns inte förrän en full hämtning
+ * körts — det är därför /ingar pekar på Uppdatera-knappen i stället för att
+ * lämna en tom lista och låta dig undra.
+ */
 export async function vaxlaTjanst(id: string, ingar: boolean): Promise<void> {
   await ensureSchema();
 
@@ -333,8 +340,20 @@ export async function lasUpp(formData: FormData): Promise<{ ok: boolean }> {
 
 /* ------------------------------------------------------------- hämtning nu */
 
+/**
+ * Hämta nu — och då menas ALLT, film- och seriekatalogen inkluderad.
+ *
+ * Den körde "snabb" förut, vilket hoppar över TMDB. Det är rätt för
+ * schemaläggaren, som går var tjugonde minut mot en källa som ändå bara
+ * uppdateras en gång per dygn. Men det gjorde knappen obrukbar för det den
+ * faktiskt trycks för: man kryssar i en tjänst på /ingar, trycker Uppdatera,
+ * och ingenting händer — katalogen kommer först vid nästa dygnskörning, och
+ * appen ser trasig ut i mellantiden.
+ *
+ * En knapp man trycker på själv är sällsynt nog att få kosta en full hämtning.
+ */
 export async function hamtaNu(): Promise<void> {
   const { hamtaAllt } = await import("@/lib/ingest");
-  await hamtaAllt("snabb");
+  await hamtaAllt("full");
   revalidatePath("/", "layout");
 }

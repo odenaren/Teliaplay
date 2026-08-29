@@ -42,6 +42,21 @@ export default async function Ingar() {
           tablå, sport, film, sök. Det finns ingen väg runt den.
         </p>
         <p className="mt-2 text-muted">
+          {/*
+            Den vanligaste förvirringen i hela appen: man kryssar i en tjänst,
+            går till Bläddra, och det är tomt. Kryssrutan säger bara att du HAR
+            tjänsten — katalogen måste hämtas innan den finns att visa, och den
+            hämtningen går en gång per dygn. Att säga det här är billigare än
+            att låta någon tro att appen är trasig.
+          */}
+          Nykryssat syns inte direkt. Kryssrutan säger att du har tjänsten; titlarna hämtas separat,
+          en gång per dygn. Vill du inte vänta:{" "}
+          <Link href="/kallor" className="text-accent underline decoration-dotted">
+            tryck Uppdatera på Källor
+          </Link>
+          , så hämtas katalogen med en gång.
+        </p>
+        <p className="mt-2 text-muted">
           {teliaPa ? (
             <>
               Telia-hämtningen är påslagen och fyller i kanalerna automatiskt. Rena

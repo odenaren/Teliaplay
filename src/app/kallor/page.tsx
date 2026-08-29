@@ -28,7 +28,12 @@ export default async function Kallor() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-[15px] font-semibold tracking-tight">Källor</h1>
+        <div className="min-w-0">
+          <h1 className="text-[15px] font-semibold tracking-tight">Källor</h1>
+          <p className="mt-0.5 text-[11px] text-muted">
+            Uppdatera hämtar allt, katalogen inkluderad. Tar en stund.
+          </p>
+        </div>
         <UppdateraKnapp action={hamtaNu} />
       </div>
 
