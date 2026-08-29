@@ -8,9 +8,42 @@
  * anrop mot en gratis webbtjänst är att be om att bli utestängd.
  */
 
+/*
+ * User-Agent.
+ *
+ * Den ärliga strängen nedan är den vi helst skickar, och den fungerar mot
+ * TMDB, SVT och TheSportsDB. tv.nu svarar 403 på den: deras webb-API ligger
+ * bakom ett skydd som avvisar allt som inte ser ut som en webbläsare. Det är
+ * inget vi kommer runt genom att fråga snällare — headern är hela skillnaden.
+ *
+ * Anropen är desamma i övrigt: samma publika endpoint, samma data, till din
+ * egen installation, i den takt HOST_INTERVAL_MS sätter. Inget kringgås utom
+ * en filtrering på klientnamn.
+ */
 const USER_AGENT =
   process.env.HTTP_USER_AGENT ??
   "teliaplay-personal/1.0 (privat, icke-kommersiell användning)";
+
+const WEBBLASARE =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+
+/** Värdar som avvisar allt som inte ser ut som en webbläsare. */
+const KRAVER_WEBBLASARHEADERS: Record<string, { origin: string }> = {
+  "web-api.tv.nu": { origin: "https://www.tv.nu" },
+};
+
+function varduppsattning(host: string): Record<string, string> {
+  const krav = KRAVER_WEBBLASARHEADERS[host];
+  if (!krav) return { "User-Agent": USER_AGENT };
+
+  return {
+    "User-Agent": WEBBLASARE,
+    Origin: krav.origin,
+    Referer: `${krav.origin}/`,
+    "Accept-Language": "sv-SE,sv;q=0.9,en;q=0.8",
+  };
+}
 
 /**
  * Minsta tid mellan två anrop till samma värd, i millisekunder.
@@ -51,6 +84,39 @@ export interface HamtaOpts {
   body?: unknown;
 }
 
+/**
+ * Plockar ut kärnan ur ett felsvar.
+ *
+ * "HTTP 400" säger att något var fel, inte vad. Tjänsterna skickar nästan
+ * alltid med en förklaring i kroppen — "invalid_grant", "Bad credentials",
+ * "Invalid API key" — och den raden är skillnaden mellan att veta vad som ska
+ * rättas och att gissa. Telias 400 var oläsbar i timmar av just det skälet.
+ *
+ * Kroppen kapas hårt: den ska rymmas i en logg-rad på /kallor, inte vara en
+ * felsökningssession i sig.
+ */
+async function varfor(res: Response): Promise<string> {
+  try {
+    const text = (await res.text()).trim();
+    if (!text) return "";
+
+    // JSON: leta upp det fält som brukar bära förklaringen.
+    try {
+      const data = JSON.parse(text) as Record<string, unknown>;
+      for (const nyckel of ["message", "error_description", "error", "status_message", "detail"]) {
+        const v = data[nyckel];
+        if (typeof v === "string" && v) return ` — ${v.slice(0, 160)}`;
+      }
+    } catch {
+      /* inte json, ta råtexten nedan */
+    }
+
+    return ` — ${text.replace(/\s+/g, " ").slice(0, 160)}`;
+  } catch {
+    return "";
+  }
+}
+
 export async function fetchText(url: string, opts: HamtaOpts = {}): Promise<string> {
   const { timeoutMs = 20_000, attempts = 3, headers = {}, method = "GET", body } = opts;
 
@@ -74,15 +140,15 @@ export async function fetchText(url: string, opts: HamtaOpts = {}): Promise<stri
         method,
         signal: ctrl.signal,
         headers: {
-          "User-Agent": USER_AGENT,
           Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
+          ...varduppsattning(host),
           ...(body ? { "Content-Type": "application/json" } : {}),
           ...headers,
         },
         body: body ? JSON.stringify(body) : undefined,
         cache: "no-store",
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}${await varfor(res)}`);
       return await res.text();
     } catch (err) {
       lastError = err;

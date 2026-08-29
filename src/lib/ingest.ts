@@ -39,6 +39,7 @@ export interface Sammanfattning {
 /** Kör ett steg, mät det, logga det, och låt aldrig felet spilla över. */
 async function kor(kalla: string, fn: () => Promise<number>): Promise<Steg> {
   const start = Date.now();
+  påg = kalla;
   try {
     const antal = await fn();
     const steg: Steg = { kalla, status: "ok", antal, ms: Date.now() - start };
@@ -74,6 +75,25 @@ async function logga(steg: Steg): Promise<void> {
  * per dygn — JustWatch uppdaterar ändå bara en gång per dygn, och att fråga
  * TMDB varje kvart ger ingen färskare data, bara onödig last.
  */
+/*
+ * Vilket steg som körs just nu, eller null när ingenting pågår.
+ *
+ * /kallor läser den. Utan den ser en pågående hämtning ut som kaos: raderna
+ * har olika ålder — några en minut, några en halvtimme, en tretton timmar —
+ * eftersom varje steg skriver sin logg när det är klart. Det ser ut som att
+ * halva appen slutat fungera, när den i själva verket håller på.
+ *
+ * En modulvariabel räcker: schemaläggaren och sidan lever i samma nodprocess,
+ * och kör man två instanser är dubbla schemaläggare ett större problem än en
+ * felvisad etikett.
+ */
+let påg: string | null = null;
+
+/** Vilket hämtningssteg som körs just nu. null = inget pågår. */
+export function pagandeSteg(): string | null {
+  return påg;
+}
+
 export async function hamtaAllt(djup: "snabb" | "full" = "snabb"): Promise<Sammanfattning> {
   const start = Date.now();
   await ensureSchema();
@@ -95,6 +115,7 @@ export async function hamtaAllt(djup: "snabb" | "full" = "snabb"): Promise<Samma
 
   steg.push(await kor("städning", stadning));
 
+  påg = null;
   return { steg, ms: Date.now() - start };
 }
 

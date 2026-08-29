@@ -229,12 +229,31 @@ function cidUr(svar: unknown): string[] {
  * kroppen. Här står lösenordet. Meddelandet skrivs därför om till steget som
  * fallerade plus statuskoden — det räcker för felsökning och läcker inget.
  */
+/**
+ * Gör om ett drivrutinsfel till något läsbart — utan att lösenordet följer med.
+ *
+ * Statusen ensam räckte inte: "Telia authenticate: HTTP 400" säger att Telia
+ * avvisade anropet, inte varför, och det är skillnaden mellan fel lösenord och
+ * ett API som ändrat form. Förklaringen ur svarskroppen tas därför med.
+ *
+ * Lösenordet kan aldrig stå i ett SVAR — men det kan stå i en URL som någon
+ * annan del av kedjan råkat bygga, och därför tvättas raden ändå. Att lita på
+ * att det aldrig händer är precis den sortens antagande som läcker en dag.
+ */
 function snalltFel(steg: string) {
   return (err: unknown): never => {
     const rad = err instanceof Error ? err.message : String(err);
-    const status = rad.match(/HTTP (\d{3})/)?.[1];
-    throw new Error(
-      status ? `Telia ${steg}: HTTP ${status}` : `Telia ${steg}: anropet gick inte igenom`,
-    );
+    const losen = process.env.TELIA_PASSWORD;
+    const anvandare = process.env.TELIA_USERNAME;
+
+    let ren = rad;
+    for (const hemlig of [losen, anvandare]) {
+      if (hemlig && hemlig.length > 2) ren = ren.split(hemlig).join("***");
+    }
+
+    const status = ren.match(/HTTP (\d{3})(.*)$/s);
+    if (!status) throw new Error(`Telia ${steg}: anropet gick inte igenom`);
+
+    throw new Error(`Telia ${steg}: HTTP ${status[1]}${(status[2] ?? "").slice(0, 180)}`);
   };
 }

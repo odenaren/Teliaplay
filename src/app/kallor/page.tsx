@@ -1,4 +1,5 @@
 import { kallhalsa, ingarKarta } from "@/lib/queries";
+import { pagandeSteg } from "@/lib/ingest";
 import { hasDatabase } from "@/lib/db";
 import { hamtaNu } from "@/app/actions";
 import { alderDagar } from "@/lib/entitlement";
@@ -24,6 +25,7 @@ export default async function Kallor() {
 
   const [halsa, karta] = await Promise.all([kallhalsa(), ingarKarta()]);
   const alder = alderDagar(karta);
+  const pagar = pagandeSteg();
 
   return (
     <div className="space-y-6">
@@ -36,6 +38,16 @@ export default async function Kallor() {
         </div>
         <UppdateraKnapp action={hamtaNu} />
       </div>
+
+      {pagar && (
+        <aside className="rounded-lg border border-accent/30 bg-accent/5 px-3 py-2.5 text-[12px]">
+          <p className="font-medium text-accent">Hämtning pågår — steget &quot;{pagar}&quot;</p>
+          <p className="mt-0.5 text-muted">
+            Raderna nedan uppdateras ett steg i taget, så några är äldre än andra tills den är
+            klar. Ladda om sidan om en stund.
+          </p>
+        </aside>
+      )}
 
       <section className="rounded-lg border border-line bg-surface/40">
         {halsa.length === 0 ? (
