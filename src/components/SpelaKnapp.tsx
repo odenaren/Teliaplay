@@ -40,6 +40,7 @@ export function SpelaKnapp({
     meddelande: string;
     lank: string | null;
     appLank?: string | null;
+    kopiera?: string | null;
   } | null>(null);
 
   const tryck = () =>
@@ -64,6 +65,7 @@ export function SpelaKnapp({
         <OppnaLank
           url={svar.lank}
           appUrl={svar.appLank}
+          kopiera={svar.kopiera}
           className="text-[10px] text-muted underline decoration-dotted hover:text-text"
           title={svar.meddelande}
         >

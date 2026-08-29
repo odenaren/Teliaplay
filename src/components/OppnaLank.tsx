@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 /**
  * Länken som helst öppnar tjänstens app, och webben först om appen inte finns.
@@ -23,19 +23,37 @@ import { useRef } from "react";
 export function OppnaLank({
   appUrl,
   url,
+  kopiera,
   children,
   className,
   title,
 }: {
   appUrl?: string | null;
   url: string;
+  /** Läggs i urklipp när länken öppnas — titeln man ska klistra in i sökrutan. */
+  kopiera?: string | null;
   children: React.ReactNode;
   className?: string;
   title?: string;
 }) {
   const klocka = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [kopierat, setKopierat] = useState(false);
 
   const oppna = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    /*
+     * Urklipp först, och medan klicket fortfarande pågår.
+     *
+     * Webbläsare tillåter skrivning till urklipp bara som direkt följd av en
+     * användarhandling. Görs det efter en navigering, eller i en timer, nekas
+     * det tyst — och då står man på söksidan med tomt urklipp och undrar.
+     */
+    if (kopiera) {
+      navigator.clipboard?.writeText(kopiera).then(
+        () => setKopierat(true),
+        () => setKopierat(false),
+      );
+    }
+
     if (!appUrl) return; // ingen app känd — låt länken gå som vanligt
 
     e.preventDefault();
@@ -64,7 +82,7 @@ export function OppnaLank({
       className={className}
       title={title}
     >
-      {children}
+      {kopierat ? "titeln kopierad ✓" : children}
     </a>
   );
 }

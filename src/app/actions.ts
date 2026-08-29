@@ -236,6 +236,13 @@ export interface SpelaSvar {
    * null när vi inte känner till något schema för tjänsten.
    */
   appLank: string | null;
+  /**
+   * Titeln att lägga i urklipp när länken öppnas.
+   *
+   * Satt när länken går till en söksida utan förifylld sökning — då är
+   * urklipp skillnaden mellan "sök själv" och "klistra in".
+   */
+  kopiera: string | null;
 }
 
 /**
@@ -257,7 +264,8 @@ export async function spelaPaTv(
   } = {},
 ): Promise<SpelaSvar> {
   const lank = lankTill(tjanstId, { url: opts.url, titelId: opts.titelId, namn: opts.namn });
-  if (!lank) return { ok: false, meddelande: "Okänd tjänst.", lank: null, appLank: null };
+  if (!lank)
+    return { ok: false, meddelande: "Okänd tjänst.", lank: null, appLank: null, kopiera: null };
 
   const profil = await aktivProfil();
   if (profil && opts.refId && opts.sort) {
@@ -276,6 +284,7 @@ export async function spelaPaTv(
     // Adressen som öppnar telefonappen i stället för Safari. Knappen provar
     // den först och faller tillbaka på lank.url om ingen app svarar.
     appLank: lank.appUrl ?? null,
+    kopiera: lank.kopiera ?? null,
   };
 }
 

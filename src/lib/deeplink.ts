@@ -32,19 +32,44 @@ export interface Lank {
    * ifylld och används som fallback av knappen.
    */
   appUrl?: string;
+  /**
+   * Text att lägga i urklipp när länken öppnas.
+   *
+   * Satt för söksidor utan förifyllning: man landar i sökrutan och behöver
+   * bara klistra in. Undefined när adressen redan bär sökningen.
+   */
+  kopiera?: string;
 }
 
-const SOK_MONSTER: Partial<Record<TjanstId, string>> = {
-  viaplay: "https://viaplay.se/sok?query={q}",
-  max: "https://play.max.com/search?q={q}",
-  disney: "https://www.disneyplus.com/sv-se/search?q={q}",
-  tv4play: "https://www.tv4play.se/sok?q={q}",
-  prime: "https://www.primevideo.com/search/ref=atv_nb_sr?phrase={q}",
-  skyshowtime: "https://www.skyshowtime.com/se/search?q={q}",
-  netflix: "https://www.netflix.com/search?q={q}",
-  discovery: "https://www.discoveryplus.com/se/search?q={q}",
-  svtplay: "https://www.svtplay.se/sok?q={q}",
-  teliaplay: "https://www.teliaplay.se/sok?q={q}",
+/*
+ * Söksidorna.
+ *
+ * `url` är sidan. `monster` är en förifylld sökning, och den finns BARA för
+ * tjänster där mönstret är känt att fungera.
+ *
+ * Här stod förut ett {q}-mönster för varenda tjänst, och de var till stor del
+ * gissade. Följden var adresser som inte fanns: Disney+ fick
+ * /sv-se/search?q=… när sidan i själva verket heter /sv-se/browse/search. En
+ * länk till en söksida som inte finns är sämre än en länk till startsidan,
+ * eftersom den ser ut att vara precis rätt.
+ *
+ * Därför är förifyllningen numera undantaget, inte regeln — och titeln läggs
+ * i urklipp i stället, så att den som landar på söksidan bara behöver klistra
+ * in. Det är ett tryck till, men ett tryck som alltid fungerar.
+ */
+const SOK: Partial<Record<TjanstId, { url: string; monster?: string }>> = {
+  viaplay: { url: "https://viaplay.se/sok" },
+  max: { url: "https://play.max.com/search" },
+  // Adressen bekräftad av en abonnent i appen. De andra är obekräftade.
+  disney: { url: "https://www.disneyplus.com/sv-se/browse/search" },
+  tv4play: { url: "https://www.tv4play.se/sok" },
+  prime: { url: "https://www.primevideo.com/search" },
+  skyshowtime: { url: "https://www.skyshowtime.com/se/search" },
+  // Netflix ?q= är dokumenterat och stabilt sedan många år.
+  netflix: { url: "https://www.netflix.com/search", monster: "https://www.netflix.com/search?q={q}" },
+  discovery: { url: "https://www.discoveryplus.com/se/search" },
+  svtplay: { url: "https://www.svtplay.se/sok" },
+  teliaplay: { url: "https://www.teliaplay.se/sok" },
 };
 
 export function lankTill(
@@ -67,9 +92,16 @@ export function lankTill(
     return { ...bas, url: t.titelMonster.replace("{id}", opts.titelId), niva: "titel" };
   }
 
-  const sokMonster = SOK_MONSTER[t.id];
-  if (opts.namn && sokMonster) {
-    return { ...bas, url: sokMonster.replace("{q}", encodeURIComponent(opts.namn)), niva: "sok" };
+  const sok = SOK[t.id];
+  if (opts.namn && sok) {
+    return {
+      ...bas,
+      url: sok.monster ? sok.monster.replace("{q}", encodeURIComponent(opts.namn)) : sok.url,
+      niva: "sok",
+      // Titeln följer med så att knappen kan lägga den i urklipp. Utan
+      // förifyllning i adressen är det den som gör söksidan användbar.
+      kopiera: sok.monster ? undefined : opts.namn,
+    };
   }
 
   return { ...bas, url: t.webb, niva: "start" };
