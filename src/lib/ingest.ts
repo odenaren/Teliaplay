@@ -503,6 +503,25 @@ async function tmdbSteg(): Promise<number> {
 
   let antal = 0;
 
+  /*
+   * Felen samlas, de sväljs inte.
+   *
+   * Anropen låg förut bakom `.catch(() => [])`, vilket gjorde ett trasigt
+   * TMDB omöjligt att se: saknades nyckeln misslyckades varje anrop, steget
+   * returnerade noll rader och loggades som OK. /kallor visade en grön prick
+   * och "0 rader", appen var tom, och ingenting någonstans sa varför.
+   *
+   * Ett enskilt fel ska fortfarande inte stoppa resten — en provider som
+   * strular får inte ta katalogen för de andra med sig. Men går INGET in och
+   * det fanns fel, då är det felet svaret, och det ska stå på /kallor.
+   */
+  const fel: string[] = [];
+  const notera = (err: unknown) => {
+    const text = err instanceof Error ? err.message : String(err);
+    if (!fel.includes(text)) fel.push(text);
+    return [];
+  };
+
   for (const typ of ["film", "serie"] as const) {
     // En provider i taget, annars går det inte att veta VILKEN tjänst som
     // visar titeln — och det är just den uppgiften appen finns för att ge.
@@ -510,7 +529,7 @@ async function tmdbSteg(): Promise<number> {
       const provider = TJANSTER.find((x) => x.id === t.id)?.tmdbProvider;
       if (!provider) continue;
 
-      const titlar = await tmdb.hamtaKatalog([provider], typ).catch(() => []);
+      const titlar = await tmdb.hamtaKatalog([provider], typ).catch(notera);
       for (const titel of titlar) {
         await sparaTitel(titel, typ, t.id);
         antal++;
@@ -522,11 +541,20 @@ async function tmdbSteg(): Promise<number> {
        * bevaras som nyhet_rank — titlar från samma körning delar tidsstämpel,
        * och utan rangen faller de tillbaka på insättningsordning.
        */
-      const nya = await tmdb.hamtaNyheter([provider], typ).catch(() => []);
+      const nya = await tmdb.hamtaNyheter([provider], typ).catch(notera);
       for (const [plats, titel] of nya.entries()) {
         await sparaTitel(titel, typ, t.id, plats);
       }
     }
+  }
+
+  if (antal === 0 && fel.length > 0) {
+    throw new Error(fel.join(" · "));
+  }
+
+  // Delvis lyckat: säg vad som fattas, men behåll det som kom in.
+  if (fel.length > 0) {
+    console.warn(`[tmdb] ${antal} titlar hämtade, men: ${fel.join(" · ")}`);
   }
 
   return antal;
