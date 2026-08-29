@@ -148,6 +148,8 @@ export async function kryssaPaket(paketId: string): Promise<void> {
           verifierad_at = now()
       where id = ${t.id}
     `;
+
+    await kryssaKanaler(t.id);
   }
 
   revalidatePath("/ingar");
@@ -184,6 +186,31 @@ export async function vaxlaOmfattning(id: string, omfattning: "allt" | "sport"):
  * körts — det är därför /ingar pekar på Uppdatera-knappen i stället för att
  * lämna en tom lista och låta dig undra.
  */
+/**
+ * Kryssar i tjänstens kanaler.
+ *
+ * DET HÄR SAKNADES, och det gjorde tablån tom.
+ *
+ * `kanal.ingar` börjar som false för varje kanal, och det enda som satte den
+ * till true var Telia-hämtningen. Är den trasig — och den svarar 400 — står
+ * varje kanal kvar som "ingår inte" hur många tjänster man än kryssar i. Då
+ * hämtas ingen tablå, och den som ändå hämtats visas inte, eftersom BÅDA
+ * frågorna kräver k.ingar = true.
+ *
+ * Att säga "jag har Viaplay" ska betyda att man har Viaplays kanaler. Vill man
+ * kryssa ur en enskild kanal går det på /ingar efteråt — men förvalet ska vara
+ * det som stämmer i nio fall av tio, inte tomt.
+ *
+ * Bara i, aldrig ur: en kanal du kryssat bort ska inte komma tillbaka för att
+ * du råkade trycka på paketknappen igen.
+ */
+async function kryssaKanaler(tjanstId: string): Promise<void> {
+  await sql`
+    update kanal set ingar = true, kalla = 'manuell'
+    where tjanst_id = ${tjanstId} and ingar = false
+  `;
+}
+
 export async function vaxlaTjanst(id: string, ingar: boolean): Promise<void> {
   await ensureSchema();
 

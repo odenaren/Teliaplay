@@ -19,7 +19,42 @@ const SRC = path.join(process.cwd(), "src");
 
 const EXTENSIONS = ["", ".ts", ".tsx", "/index.ts"];
 
+/*
+ * next/cache utanför Next.
+ *
+ * Serveråtgärderna i app/actions.ts importerar revalidatePath. Utanför Next
+ * går den inte att lösa upp, och därför gick åtgärderna inte att testa alls —
+ * man fick nöja sig med att läsa deras SQL och hoppas. Just den sortens
+ * otestade kod låg bakom att paketknappen kryssade i tjänster men inte deras
+ * kanaler, och tablån blev tom.
+ *
+ * Stubben gör ingenting, vilket är precis rätt: i ett test finns ingen cache
+ * att göra ogiltig.
+ */
+const modul = (kod) => "data:text/javascript," + encodeURIComponent(kod);
+
+const NEXT_STUBBAR = {
+  "next/cache": modul(
+    "export function revalidatePath(){}\nexport function revalidateTag(){}\n" +
+      "export function unstable_cache(f){return f}\n",
+  ),
+  // cookies() används av profilen. Ett test har ingen webbläsare och därmed
+  // inga kakor — en tom uppsättning är sanningen, inte en förenkling.
+  "next/headers": modul(
+    "const tom = { get: () => undefined, set: () => {}, delete: () => {}, getAll: () => [] };\n" +
+      "export async function cookies(){ return tom }\n" +
+      "export async function headers(){ return new Map() }\n",
+  ),
+  "next/navigation": modul(
+    "export function redirect(u){ const e = new Error('redirect: ' + u); e.digest = 'NEXT_REDIRECT'; throw e }\n" +
+      "export function notFound(){ throw new Error('notFound') }\n",
+  ),
+};
+
 export async function resolve(specifier, context, nextResolve) {
+  const stubbe = NEXT_STUBBAR[specifier];
+  if (stubbe) return { url: stubbe, shortCircuit: true };
+
   // `@/lib/tag` → src/lib/tag.ts
   if (specifier.startsWith("@/")) {
     const base = path.join(SRC, specifier.slice(2));
