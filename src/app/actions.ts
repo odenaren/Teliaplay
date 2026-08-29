@@ -207,14 +207,30 @@ export async function vaxlaKanal(id: string, ingar: boolean): Promise<void> {
 }
 
 /** Kopplar en av våra kanaler till tv.nu:s id när namnmatchningen missat. */
+/**
+ * Kopplar en kanal till tv.nu, eller lossar kopplingen.
+ *
+ * Ett TOMT fält betyder "ta bort id:t", och det är inte en bekvämlighet utan
+ * en nödvändighet: ett felaktigt id gick tidigare inte att ändra. Kanalen föll
+ * ur listan över okopplade så fort något fyllts i, och därefter fanns ingen väg
+ * tillbaka annat än genom databasen. Man satt med en tom tablå och ett id man
+ * inte kunde se.
+ */
 export async function kopplaKanal(formData: FormData): Promise<void> {
   await ensureSchema();
   const id = String(formData.get("id") ?? "");
-  const tvnuId = String(formData.get("tvnuId") ?? "").trim();
-  if (!id || !tvnuId) return;
+  if (!id) return;
 
-  await sql`update kanal set tvnu_id = ${tvnuId} where id = ${id}`;
+  const tvnuId = String(formData.get("tvnuId") ?? "").trim();
+
+  await sql`update kanal set tvnu_id = ${tvnuId || null} where id = ${id}`;
+
+  // Sändningarna hörde till det gamla id:t. Att låta dem ligga kvar gör att en
+  // felkopplad kanal ser rätt ut tills de blir gamla nog att städas bort.
+  if (!tvnuId) await sql`delete from program where kanal_id = ${id}`;
+
   revalidatePath("/ingar");
+  revalidatePath("/tabla");
 }
 
 /* ------------------------------------------------------------- startsidan */

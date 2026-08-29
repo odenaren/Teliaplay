@@ -477,7 +477,26 @@ export async function tjansterMedStatus(): Promise<TjanstRad[]> {
 
 export async function kanalerMedStatus(): Promise<KanalRad[]> {
   await ensureSchema();
-  return sql<KanalRad[]>`select * from kanal order by sort`;
+
+  /*
+   * Antalet sändningar per kanal följer med, och det är hela poängen.
+   *
+   * Ett tv.nu-id fylls i för hand och kan vara fel. Utan siffran syns det inte:
+   * kanalen ser rätt ut på /ingar, tablån är bara tom, och man har ingenting
+   * att gå på. Står det "0 program" bredvid ett ifyllt id är det id:t som är
+   * fel — det är en hel felsökning ersatt av en siffra.
+   */
+  return sql<KanalRad[]>`
+    select k.*, coalesce(p.antal, 0)::int as program_antal
+    from kanal k
+    left join (
+      select kanal_id, count(*) as antal
+      from program
+      where start > now() - interval '1 day'
+      group by kanal_id
+    ) p on p.kanal_id = k.id
+    order by k.sort
+  `;
 }
 
 /** Kanaler som ingår men saknar koppling till tv.nu — alltså tom tablå. */

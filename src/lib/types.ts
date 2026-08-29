@@ -27,6 +27,8 @@ export interface KanalRad {
   ingar: boolean;
   kalla: string;
   sort: number;
+  /** Sändningar i databasen det senaste dygnet. 0 = tablån är tom för kanalen. */
+  program_antal?: number;
 }
 
 export interface ProgramRad {

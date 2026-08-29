@@ -287,16 +287,24 @@ async function tvnuTablaSteg(): Promise<number> {
   let antal = 0;
 
   /*
-   * Brytare.
+   * Brytare — men bara mot att KÄLLAN är nere.
    *
-   * Trettio kanaler gånger tre dagar är nittio anrop, vart och ett med tre
-   * försök och backoff. Är tv.nu nere kostar det över en minut att misslyckas
-   * nittio gånger i rad — varje kvart, i onödan, mot en tjänst som redan har
-   * problem. Fem misslyckanden i följd betyder att källan är nere och inte att
-   * just den kanalen strular, och då är det rätt att sluta försöka och säga det.
+   * Trettio kanaler gånger tre dagar är nittio anrop med backoff. Är tv.nu
+   * nere kostar det över en minut att misslyckas nittio gånger i rad, varje
+   * kvart, mot en tjänst som redan har problem.
+   *
+   * MEN: brytaren räknade tidigare ALLA fel, även "den här kanalen finns
+   * inte". Ett tv.nu-id fylls i för hand och kan vara fel — och fem felaktiga
+   * id:n i rad stängde av hela steget, så att kanalerna EFTER dem aldrig
+   * hämtades. I drift såg det ut som att bara den första kanalen hade tablå.
+   *
+   * Ett 400 eller 404 handlar om kanalen, inte om källan: den svarade, och
+   * svaret var att id:t inte finns. Sådana räknas inte, de samlas i stället
+   * och rapporteras så att man vet vilket id som ska rättas.
    */
   let ifoljd = 0;
   const TAK = 5;
+  const felaktiga = new Set<string>();
 
   for (const kanal of kanaler) {
     for (const dag of dagar) {
@@ -307,11 +315,20 @@ async function tvnuTablaSteg(): Promise<number> {
         );
       }
 
-      const program = await tvnu.hamtaTabla(kanal.tvnu_id, dag).catch(() => null);
-      if (program === null) {
+      const program = await tvnu.hamtaTabla(kanal.tvnu_id, dag).catch((err: unknown) => {
+        const rad = err instanceof Error ? err.message : String(err);
+
+        if (/HTTP 40[034]/.test(rad)) {
+          // Kanalens id, inte källan. Rör inte brytaren.
+          felaktiga.add(kanal.id);
+          return null;
+        }
+
         ifoljd++;
-        continue;
-      }
+        return null;
+      });
+
+      if (program === null) continue;
       ifoljd = 0;
 
       for (const p of program) {
@@ -334,6 +351,13 @@ async function tvnuTablaSteg(): Promise<number> {
         antal++;
       }
     }
+  }
+
+  if (felaktiga.size > 0) {
+    console.warn(
+      `[tv.nu] ${felaktiga.size} kanaler har ett id som tv.nu inte känner igen: ` +
+        `${[...felaktiga].join(", ")} — rätta dem på /ingar`,
+    );
   }
 
   return antal;

@@ -141,8 +141,8 @@ export default async function Ingar() {
           </h2>
           <p className="mt-1 text-[11px] leading-relaxed text-muted">
             De ingår i paketet men appen har inte hittat dem hos tv.nu, så deras rader i tablån
-            blir tomma. Kör <code className="text-text">npm run probe -- tvnu</code> för att se
-            vad de heter där, och klistra in id:t här.
+            blir tomma. Id:t fyller du i på kanalen längre ned — där står också hur många
+            program som faktiskt hämtats, vilket är det enda sättet att se om id:t stämmer.
           </p>
           <div className="mt-2 space-y-2">
             {omatchade.map((k) => (
@@ -255,25 +255,68 @@ export default async function Ingar() {
               </div>
             )}
 
+            {/*
+              Kanalerna, med sitt tv.nu-id framme.
+
+              Det var chips med namnet och id:t gömt i en tooltip — oåtkomlig
+              på en telefon. Följden: man fyllde i ett id, kanalen försvann ur
+              listan över okopplade, och sedan gick det varken att se eller
+              ändra vad man skrivit. Ett felskrivet id blev permanent.
+
+              Programsiffran är facit. Ett ifyllt id med 0 program betyder att
+              id:t är fel, och det syns utan att någon behöver leta i loggar.
+            */}
             {rad.ingar && mina.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 px-3 py-2.5">
+              <ul className="divide-y divide-line/60">
                 {mina.map((k) => (
-                  <form key={k.id} action={vaxlaKanal.bind(null, k.id, !k.ingar)}>
-                    <button
-                      type="submit"
-                      className={`rounded-full px-2 py-1 text-[11px] transition-colors ${
-                        k.ingar
-                          ? "border border-sport/40 text-text"
-                          : "border border-line text-muted line-through"
-                      }`}
-                      title={k.tvnu_id ? `tv.nu: ${k.tvnu_id}` : "ingen tablå kopplad"}
-                    >
-                      {k.namn}
-                      {k.ingar && !k.tvnu_id && <span className="ml-1 text-accent">·</span>}
-                    </button>
-                  </form>
+                  <li key={k.id} className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <form action={vaxlaKanal.bind(null, k.id, !k.ingar)}>
+                        <button
+                          type="submit"
+                          className={`rounded-full px-2 py-0.5 text-[11px] transition-colors ${
+                            k.ingar
+                              ? "border border-sport/40 text-text"
+                              : "border border-line text-muted line-through"
+                          }`}
+                        >
+                          {k.namn}
+                        </button>
+                      </form>
+
+                      {k.ingar && (
+                        <span className="text-[10px] text-muted">
+                          {k.tvnu_id
+                            ? k.program_antal
+                              ? `${k.program_antal} program`
+                              : "0 program — id:t stämmer troligen inte"
+                            : "ingen tablå kopplad"}
+                        </span>
+                      )}
+                    </div>
+
+                    {k.ingar && (
+                      <form action={kopplaKanal} className="mt-1.5 flex items-center gap-2">
+                        <input type="hidden" name="id" value={k.id} />
+                        <input
+                          name="tvnuId"
+                          defaultValue={k.tvnu_id ?? ""}
+                          placeholder="id hos tv.nu"
+                          className={`min-w-0 flex-1 rounded border bg-surface px-2 py-1 text-[11px] outline-none focus:border-accent/60 ${
+                            k.tvnu_id && !k.program_antal ? "border-live/50" : "border-line"
+                          }`}
+                        />
+                        <button
+                          type="submit"
+                          className="shrink-0 rounded border border-line px-2 py-1 text-[10px] text-muted hover:text-text"
+                        >
+                          Spara
+                        </button>
+                      </form>
+                    )}
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </section>
         );
