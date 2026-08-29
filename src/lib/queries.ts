@@ -274,7 +274,7 @@ export async function nyttIPaketet(antal = 24): Promise<TitelVy[]> {
   await ensureSchema();
 
   return sql<TitelVy[]>`
-    select t.*, array_agg(a.tjanst_id) as tjanster,
+    select t.*, array_agg(a.tjanst_id order by a.tjanst_id) as tjanster,
            min(a.sedd_forst) as sedd_forst, max(a.sedd_sist) as sedd_sist
     from titel t
     join tillganglig a on a.titel_id = t.id
@@ -300,7 +300,7 @@ export async function titlarIGenre(genreId: string, antal = 20): Promise<TitelVy
   await ensureSchema();
 
   return sql<TitelVy[]>`
-    select t.*, array_agg(a.tjanst_id) as tjanster,
+    select t.*, array_agg(a.tjanst_id order by a.tjanst_id) as tjanster,
            min(a.sedd_forst) as sedd_forst, max(a.sedd_sist) as sedd_sist
     from titel t
     join tillganglig a on a.titel_id = t.id
@@ -340,12 +340,24 @@ export async function titlarHosTjanst(tjanstId: string, antal = 20): Promise<Tit
   await ensureSchema();
 
   return sql<TitelVy[]>`
-    select t.*, array_agg(a2.tjanst_id) as tjanster,
+    select t.*, array_agg(a2.tjanst_id order by a2.tjanst_id) as tjanster,
            min(a2.sedd_forst) as sedd_forst, max(a2.sedd_sist) as sedd_sist
     from titel t
     join tillganglig a on a.titel_id = t.id and a.tjanst_id = ${tjanstId}
     join tjanst tj on tj.id = a.tjanst_id and tj.ingar = true and tj.omfattning = 'allt'
+    /*
+     * Den andra kopplingen finns för att kunna visa ALLA tjänster titeln går
+     * att se på, inte bara den man filtrerat fram. Den måste lyda samma regler
+     * som den första — annars listas tjänster som inte ingår, eller som bara
+     * ingår för sporten.
+     *
+     * Det felet fanns här: en film som gick på både Viaplay och Prime fick
+     * båda märkena, och Spela-knappen tog den första i listan — Viaplay, som
+     * abonnenten inte har film på. Appen skickade alltså iväg någon till en
+     * tjänst den själv visste var fel.
+     */
     join tillganglig a2 on a2.titel_id = t.id
+    join tjanst tj2 on tj2.id = a2.tjanst_id and tj2.ingar = true and tj2.omfattning = 'allt'
     where t.poster is not null
     group by t.id
     order by t.betyg desc nulls last, t.namn
@@ -373,7 +385,7 @@ export async function sistaChansen(antal = 12): Promise<TitelVy[]> {
   await ensureSchema();
 
   return sql<TitelVy[]>`
-    select t.*, array_agg(a.tjanst_id) as tjanster,
+    select t.*, array_agg(a.tjanst_id order by a.tjanst_id) as tjanster,
            min(a.sedd_forst) as sedd_forst, max(a.sedd_sist) as sedd_sist,
            bool_or(a.sista_chansen) as officiell
     from titel t
@@ -394,7 +406,7 @@ export async function sokTitlar(fraga: string, antal = 40): Promise<TitelVy[]> {
   if (!fraga.trim()) return [];
 
   return sql<TitelVy[]>`
-    select t.*, array_agg(a.tjanst_id) as tjanster,
+    select t.*, array_agg(a.tjanst_id order by a.tjanst_id) as tjanster,
            min(a.sedd_forst) as sedd_forst, max(a.sedd_sist) as sedd_sist
     from titel t
     join tillganglig a on a.titel_id = t.id
@@ -432,7 +444,7 @@ export async function sparat(profilId: string): Promise<{ titlar: TitelVy[]; pro
 
   const [titlar, program] = await Promise.all([
     sql<TitelVy[]>`
-      select t.*, array_agg(a.tjanst_id) as tjanster,
+      select t.*, array_agg(a.tjanst_id order by a.tjanst_id) as tjanster,
              min(a.sedd_forst) as sedd_forst, max(a.sedd_sist) as sedd_sist
       from titel t
       join favorit f on f.ref_id = t.id and f.sort = 'titel' and f.profil_id = ${profilId}
