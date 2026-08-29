@@ -56,6 +56,11 @@ export interface Lank {
  * Därför är förifyllningen numera undantaget, inte regeln — och titeln läggs
  * i urklipp i stället, så att den som landar på söksidan bara behöver klistra
  * in. Det är ett tryck till, men ett tryck som alltid fungerar.
+ *
+ * ETT `monster` LÄGGS BARA TILL NÄR NÅGON SETT DET FUNGERA. Inte för att det
+ * ser rimligt ut, inte för att en annan tjänst gör likadant. Den som provat i
+ * appen vet mer än den som läser mönstret, och det var just gissningarna som
+ * skickade folk till söksidor som inte fanns.
  */
 const SOK: Partial<Record<TjanstId, { url: string; monster?: string }>> = {
   viaplay: { url: "https://viaplay.se/sok" },
@@ -68,7 +73,8 @@ const SOK: Partial<Record<TjanstId, { url: string; monster?: string }>> = {
   // Netflix ?q= är dokumenterat och stabilt sedan många år.
   netflix: { url: "https://www.netflix.com/search", monster: "https://www.netflix.com/search?q={q}" },
   discovery: { url: "https://www.discoveryplus.com/se/search" },
-  svtplay: { url: "https://www.svtplay.se/sok" },
+  // Bekräftad av en abonnent: SVT:s ?q= fyller i sökrutan på riktigt.
+  svtplay: { url: "https://www.svtplay.se/sok", monster: "https://www.svtplay.se/sok?q={q}" },
   teliaplay: { url: "https://www.teliaplay.se/sok" },
 };
 
