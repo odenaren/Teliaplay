@@ -21,62 +21,10 @@
 import { fetchJson, plocka } from "./http";
 import { kanalNyckel } from "@/content/kanaler";
 
-const BAS = "https://web-api.tv.nu";
-
-/*
- * tv.nu kräver en `modules`-parameter, och säger det bara när den saknas:
- *
- *   {"meta":{"status":400,"code":"E_VALIDATION",
- *            "message":"modules: Detta fält är obligatoriskt"}}
- *
- * Vilka värden den godtar står ingenstans — API:et är odokumenterat, och
- * felmeddelandet räknar inte upp alternativen. Att gissa ett värde och
- * hårdkoda det vore att bygga in nästa tysta haveri: gissar vi fel får vi
- * samma 400 igen, utan att någon förstår varför.
- *
- * Därför provar adaptern kandidaterna i tur och ordning och KOMMER IHÅG den
- * som fungerade, så att det kostar ett extra anrop en gång per process och
- * inte ett per hämtning. Fungerar ingen kastas det sista felet med svarets
- * egen text, som då är det bästa underlaget som finns.
- */
-const MODULKANDIDATER: Record<string, string[]> = {
-  kanaler: ["channels", "tableauLinearChannels", "tableau", "linearChannels", "all"],
-  tabla: ["broadcasts", "schedule", "programs", "tableau", "all"],
-};
-
-const fungerandeModul: Record<string, string | undefined> = {};
-
-/**
- * Hämtar med `modules` ifyllt, och lär sig vilket värde värden godtar.
- *
- * `bygg` får värdet och returnerar hela adressen, eftersom parametern ska in
- * bland de andra och inte alltid sist.
- */
-async function medModul(sort: keyof typeof MODULKANDIDATER, bygg: (modul: string) => string) {
-  const kant = fungerandeModul[sort];
-  const kandidater = kant ? [kant] : MODULKANDIDATER[sort];
-
-  let sistaFel: unknown;
-  for (const modul of kandidater) {
-    try {
-      const svar = await fetchJson(bygg(modul));
-      if (fungerandeModul[sort] !== modul) {
-        console.log(`[tv.nu] modules=${modul} fungerar för ${sort}`);
-        fungerandeModul[sort] = modul;
-      }
-      return svar;
-    } catch (err) {
-      sistaFel = err;
-      // Ett 400 betyder fel modulnamn — prova nästa. Allt annat (403, 500,
-      // nätverksfel) är inte något ett annat modulnamn löser.
-      if (!(err instanceof Error) || !/HTTP 400/.test(err.message)) throw err;
-    }
-  }
-
-  // Glöm det inlärda värdet: slutade det fungera ska nästa körning prova om.
-  fungerandeModul[sort] = undefined;
-  throw sistaFel;
-}
+// Adressen går att peka om, så att sökningen efter rätt modules-kodning kan
+// köras mot en server som beter sig som tv.nu. Utan den sömmen är logiken
+// bara testbar mot tv.nu självt, vilket är precis vad den inte ska vara.
+const BAS = process.env.TVNU_BAS ?? "https://web-api.tv.nu";
 
 export interface TvnuKanal {
   id: string;
@@ -95,6 +43,77 @@ export interface TvnuProgram {
   bild?: string;
 }
 
+/*
+ * tv.nu kräver en `modules`-parameter, och har lärt oss två saker om den —
+ * en i taget, genom att svara olika:
+ *
+ *   modules saknas helt   → "modules: Detta fält är obligatoriskt"
+ *   modules=channels      → "modules: Det här fältet är inte en riktig matris"
+ *
+ * Den andra raden är den viktiga: parameternamnet är rätt, men den vill ha en
+ * LISTA, inte ett ord. Hur en lista skrivs i en query string är inte
+ * självklart — `modules[]=x`, `modules=["x"]` och `modules=x,y` förekommer
+ * alla i olika ramverk, och tv.nu:s API är odokumenterat.
+ *
+ * Adaptern provar därför kodning och värde i kombination, och kommer ihåg det
+ * par som fungerade. Det kostar några extra anrop en gång per process. Att i
+ * stället gissa och hårdkoda vore att bygga in nästa tysta haveri: gissar vi
+ * fel får vi samma 400 igen, och nästa person får börja om från noll.
+ */
+type Kodning = { namn: string; skriv: (varden: string[]) => string };
+
+const KODNINGAR: Kodning[] = [
+  { namn: "hakparentes", skriv: (v) => v.map((x) => `modules[]=${encodeURIComponent(x)}`).join("&") },
+  { namn: "json", skriv: (v) => `modules=${encodeURIComponent(JSON.stringify(v))}` },
+  { namn: "upprepad", skriv: (v) => v.map((x) => `modules=${encodeURIComponent(x)}`).join("&") },
+  { namn: "komma", skriv: (v) => `modules=${encodeURIComponent(v.join(","))}` },
+];
+
+const MODULKANDIDATER: Record<string, string[]> = {
+  kanaler: ["channels", "tableauLinearChannels", "tableau", "linearChannels", "all"],
+  tabla: ["broadcasts", "schedule", "programs", "tableau", "all"],
+};
+
+/** Det par som fungerade, per sort. Sparas för processens livstid. */
+const fungerande: Record<string, { kodning: Kodning; varde: string } | undefined> = {};
+
+/**
+ * Hämtar med `modules` ifyllt, och lär sig hur värden vill ha den.
+ *
+ * `bygg` får den färdiga parametersträngen och lägger in den i adressen.
+ */
+async function medModul(sort: keyof typeof MODULKANDIDATER, bygg: (param: string) => string) {
+  const kant = fungerande[sort];
+  const forsok = kant
+    ? [kant]
+    : KODNINGAR.flatMap((kodning) =>
+        MODULKANDIDATER[sort].map((varde) => ({ kodning, varde })),
+      );
+
+  let sistaFel: unknown;
+
+  for (const { kodning, varde } of forsok) {
+    try {
+      const svar = await fetchJson(bygg(kodning.skriv([varde])));
+      if (fungerande[sort]?.varde !== varde || fungerande[sort]?.kodning !== kodning) {
+        console.log(`[tv.nu] ${sort}: modules som ${kodning.namn} med "${varde}" fungerar`);
+        fungerande[sort] = { kodning, varde };
+      }
+      return svar;
+    } catch (err) {
+      sistaFel = err;
+      // Ett 400 betyder fel kodning eller fel värde — prova nästa kombination.
+      // Allt annat (403, 500, nätverksfel) löser ingen omskrivning av en
+      // parameter, och då ska felet fram med en gång.
+      if (!(err instanceof Error) || !/HTTP 400/.test(err.message)) throw err;
+    }
+  }
+
+  // Glöm det inlärda paret: slutade det fungera ska nästa körning prova om.
+  fungerande[sort] = undefined;
+  throw sistaFel;
+}
+
 /**
  * Hela kanallistan.
  *
@@ -109,9 +128,8 @@ export async function hamtaKanaler(): Promise<TvnuKanal[]> {
   for (let offset = 0; offset < 400; offset += limit) {
     const svar = await medModul(
       "kanaler",
-      (modul) =>
-        `${BAS}/tableauLinearChannels?date=${idag()}&limit=${limit}&offset=${offset}` +
-        `&modules=${encodeURIComponent(modul)}`,
+      (param) =>
+        `${BAS}/tableauLinearChannels?date=${idag()}&limit=${limit}&offset=${offset}&${param}`,
     );
     const sida = kanalerUr(svar);
     ut.push(...sida);
@@ -147,9 +165,8 @@ function kanalerUr(svar: unknown): TvnuKanal[] {
 export async function hamtaTabla(kanalId: string, datum: string): Promise<TvnuProgram[]> {
   const svar = await medModul(
     "tabla",
-    (modul) =>
-      `${BAS}/channels/${encodeURIComponent(kanalId)}/schedule?date=${datum}&fullDay=true` +
-      `&modules=${encodeURIComponent(modul)}`,
+    (param) =>
+      `${BAS}/channels/${encodeURIComponent(kanalId)}/schedule?date=${datum}&fullDay=true&${param}`,
   );
   return programUr(svar);
 }
