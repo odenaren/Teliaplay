@@ -59,20 +59,28 @@ export default async function Valv() {
             ? "Lösenord och 2FA-nycklar ligger krypterade i databasen. Nyckeln finns bara i VAULT_KEY — en databasdump utan den är obrukbar."
             : "VAULT_KEY saknas, så inga lösenord kan sparas. Sätt den under Variables i Railway — 32 slumpade byte i base64 — så dyker rutorna för lösenord och 2FA upp här. Återställningslänkarna nedan fungerar ändå."}
         </p>
-        {!profil.harPin && (
-          <form action={sattPin} className="mt-3 flex items-center gap-2">
-            <input
-              name="pin"
-              inputMode="numeric"
-              pattern="\d{4,8}"
-              placeholder="Sätt en PIN"
-              className="w-32 rounded border border-line bg-surface px-2 py-1 text-[12px] outline-none focus:border-accent/60"
-            />
-            <button type="submit" className="rounded border border-line px-2 py-1 text-[11px]">
-              Lås valvet
-            </button>
-          </form>
-        )}
+        <form action={sattPin} className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            name="pin"
+            inputMode="numeric"
+            pattern="\d{4,8}"
+            placeholder={profil.harPin ? "Ny PIN" : "Sätt en PIN"}
+            className="w-32 rounded border border-line bg-surface px-2 py-1 text-[12px] outline-none focus:border-accent/60"
+          />
+          <button type="submit" className="rounded border border-line px-2 py-1 text-[11px]">
+            {profil.harPin ? "Byt kod" : "Lås valvet"}
+          </button>
+          {profil.harPin && (
+            <span className="text-[10px] text-muted">
+              Tomt fält + Byt kod tar bort låset.
+            </span>
+          )}
+        </form>
+        <p className="mt-2 text-[10px] leading-relaxed text-muted">
+          {profil.harPin
+            ? "Valvet är låst för den här profilen. Upplåsningen gäller en timme."
+            : "Frivilligt. Utan PIN är valvet öppet för den som har adressen till appen — resten av appen är öppen ändå, valvet är det enda som är värt att låsa."}
+        </p>
       </section>
 
       {mina.map((t) => {

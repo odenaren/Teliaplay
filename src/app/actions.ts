@@ -263,11 +263,36 @@ export async function sparaKonto(formData: FormData): Promise<void> {
   revalidatePath("/valv");
 }
 
+/**
+ * Sätter, byter eller tar bort valvets PIN.
+ *
+ * Den kunde bara SÄTTAS förut, aldrig ändras eller tas bort. Glömde man den
+ * var valvet stängt för gott — allt låg kvar krypterat i databasen, oåtkomligt
+ * från appen, och enda vägen tillbaka gick genom en sql-fråga mot Postgres.
+ * Det är en fälla att bygga in i något två kompisar delar.
+ *
+ * Att byta kräver att valvet redan är upplåst, alltså att man nyss skrivit den
+ * gamla koden. Utan den kontrollen räcker det att någon får tag i adressen för
+ * att låsa om valvet till en kod bara de känner till.
+ */
 export async function sattPin(formData: FormData): Promise<void> {
   const profil = await aktivProfil();
   if (!profil) return;
 
+  if (profil.harPin) {
+    const store = await cookies();
+    if (store.get(`tp_valv_${profil.id}`)?.value !== "1") return;
+  }
+
   const pin = String(formData.get("pin") ?? "").trim();
+
+  // Tomt fält på ett upplåst valv betyder "ta bort låset".
+  if (pin === "" && profil.harPin) {
+    await sql`update profil set pin_hash = null where id = ${profil.id}`;
+    revalidatePath("/valv");
+    return;
+  }
+
   if (!/^\d{4,8}$/.test(pin)) return;
 
   await sql`update profil set pin_hash = ${pinHash(pin)} where id = ${profil.id}`;

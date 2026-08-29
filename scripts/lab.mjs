@@ -48,6 +48,15 @@ const hall = process.argv.includes("--hall");
  * fastnar på.
  */
 const utanValvnyckel = process.argv.includes("--utan-valvnyckel");
+/*
+ * Kör med ett PIN-låst, upplåst valv.
+ *
+ * Det tredje av valvets tillstånd, och det enda där man kan byta eller ta bort
+ * koden. Utan flaggan går det inte att se den skärmen alls — och en skärm man
+ * inte kan se är en skärm som aldrig blir granskad.
+ */
+const medValvpin = process.argv.includes("--valv-pin");
+const LAB_PIN = "2468";
 const bara = process.argv.find((a) => a.startsWith("--sida="))?.split("=")[1];
 
 /** Sidorna labbet går igenom. Namnet blir filnamnet. */
@@ -199,8 +208,10 @@ async function seed(sql) {
               on conflict (id) do nothing`;
   }
 
-  await sql`insert into profil (id, namn, farg) values ('lab', 'Labbet', '#a06bff')
-            on conflict (id) do nothing`;
+  const { pinHash } = await import("@/lib/vault");
+  await sql`insert into profil (id, namn, farg, pin_hash)
+            values ('lab', 'Labbet', '#a06bff', ${medValvpin ? pinHash(LAB_PIN) : null})
+            on conflict (id) do update set pin_hash = excluded.pin_hash`;
 
   let i = 0;
   for (const [namn, typ, ar, betyg, genrer, tjanster, nyhet, sista] of fix.TITLAR) {
@@ -300,6 +311,11 @@ async function skärmbilder() {
   // Profilkakan, så att labbet slipper klicka sig förbi uppstartsguiden.
   await ctx.addCookies([
     { name: "tp_profil", value: "lab", domain: "127.0.0.1", path: "/" },
+    // Upplåsningskakan sätts normalt av servern när rätt PIN skrivits in.
+    // Labbet hoppar över inknappandet och går direkt till läget efteråt.
+    ...(medValvpin
+      ? [{ name: "tp_valv_lab", value: "1", domain: "127.0.0.1", path: "/" }]
+      : []),
   ]);
 
   // Bildvärdarna går inte att nå härifrån. Svara i deras ställe.
@@ -356,7 +372,8 @@ async function skärmbilder() {
       for (const d of document.querySelectorAll("details")) d.open = true;
     });
 
-    const fil = path.join(UT, `${namn}${utanValvnyckel ? "-utan-nyckel" : ""}.png`);
+    const variant = `${utanValvnyckel ? "-utan-nyckel" : ""}${medValvpin ? "-med-pin" : ""}`;
+    const fil = path.join(UT, `${namn}${variant}.png`);
     await sida.screenshot({ path: fil, fullPage: true });
 
     const status = svar?.status() ?? 0;
