@@ -1,7 +1,6 @@
 import { Bricka } from "./Bricka";
 import { SpelaKnapp } from "./SpelaKnapp";
 import { FavoritKnapp } from "./FavoritKnapp";
-import { TJANSTER } from "@/content/tjanster";
 import type { TitelVy } from "@/lib/types";
 
 /**
@@ -25,16 +24,12 @@ export function TitelKort({
    * array_agg ger [null] när ingen rad matchade. Filtrera bort, annars ritas
    * en tom bricka som ser ut som ett fel.
    *
-   * Ordningen är content/tjanster.ts egen, inte databasens. Spela-knappen tar
-   * FÖRSTA tjänsten i listan, och den ordningen var tidigare godtycklig — en
-   * film som gick på både Viaplay och Prime kunde skicka dig till endera,
-   * olika mellan två sidladdningar. Nu är märket längst till vänster alltid
-   * det knappen använder, vilket är det enda som gör knappen förutsägbar.
+   * Ordningen kommer FRÅN FRÅGAN, sorterad på tjanst.prioritet. Kortet
+   * sorterar inte om: Spela-knappen tar första tjänsten i listan, och den
+   * ska vara den du valt att föredra — inte den som råkade komma först ur
+   * databasen, och inte en ordning som en komponent hittar på för sig själv.
    */
-  const ordning = new Map(TJANSTER.map((t, i) => [t.id as string, i]));
-  const tjanster = (titel.tjanster ?? [])
-    .filter(Boolean)
-    .sort((a, b) => (ordning.get(a) ?? 99) - (ordning.get(b) ?? 99));
+  const tjanster = (titel.tjanster ?? []).filter(Boolean);
 
   return (
     <article className={bred ? "w-full" : "w-[132px] shrink-0"}>

@@ -371,6 +371,15 @@ alter table tillganglig add column if not exists nyhet_rank integer;
 -- ingår, katalogen gör det inte.
 alter table tjanst add column if not exists omfattning text not null default 'allt';
 
+-- Vilken tjänst som vinner när en titel finns på flera. Lägre går först.
+--
+-- Det är inte en smaksak utan en konkret skillnad: samma film på Netflix och
+-- på Prime är reklamfri på den ena och har reklam på den andra, beroende på
+-- vilka nivåer man råkar ha. Appen kan inte veta vilken som är bäst för dig,
+-- och ska därför inte gissa — men den ska heller inte slumpa, vilket den
+-- gjorde när ordningen kom osorterad ur databasen.
+alter table tjanst add column if not exists prioritet integer not null default 100;
+
 -- ----------------------------------------------------------------- index
 create index if not exists program_start_idx on program (start);
 create index if not exists program_kanal_start_idx on program (kanal_id, start);

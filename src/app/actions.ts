@@ -154,6 +154,21 @@ export async function kryssaPaket(paketId: string): Promise<void> {
   revalidatePath("/", "layout");
 }
 
+/**
+ * Markerar en tjänst som föredragen, eller tar bort markeringen.
+ *
+ * Föredragna tjänster hamnar först i en titels lista, och Spela-knappen tar
+ * den första. Konkret: har du Netflix utan reklam och Prime med, vill du se
+ * filmen på Netflix när den finns på båda — och det är inget appen kan räkna
+ * ut åt dig, bara något den ska sluta slumpa.
+ */
+export async function vaxlaPrioritet(id: string, foredragen: boolean): Promise<void> {
+  await ensureSchema();
+  await sql`update tjanst set prioritet = ${foredragen ? 10 : 100} where id = ${id}`;
+  revalidatePath("/ingar");
+  revalidatePath("/", "layout");
+}
+
 /** Växlar mellan hela utbudet och bara sporten för en tjänst. */
 export async function vaxlaOmfattning(id: string, omfattning: "allt" | "sport"): Promise<void> {
   await ensureSchema();

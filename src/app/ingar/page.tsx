@@ -6,6 +6,7 @@ import {
   kopplaKanal,
   kryssaPaket,
   vaxlaOmfattning,
+  vaxlaPrioritet,
 } from "@/app/actions";
 import { PAKET } from "@/content/paket";
 import { TJANSTER } from "@/content/tjanster";
@@ -227,6 +228,30 @@ export default async function Ingar() {
                     </button>
                   </form>
                 ))}
+
+                {/*
+                  Föredragen tjänst.
+
+                  Avgör vart Spela tar dig när en titel finns på flera. Samma
+                  film kan vara reklamfri på den ena och full av reklam på den
+                  andra, och vilken som är bäst vet bara du.
+                */}
+                <form
+                  action={vaxlaPrioritet.bind(null, def.id, rad.prioritet >= 100)}
+                  className="ml-auto"
+                >
+                  <button
+                    type="submit"
+                    title="Välj den här när en titel finns på flera tjänster"
+                    className={`rounded-full border px-2 py-0.5 transition-colors ${
+                      rad.prioritet < 100
+                        ? "border-accent bg-accent/15 text-accent"
+                        : "border-line text-muted hover:text-text"
+                    }`}
+                  >
+                    {rad.prioritet < 100 ? "★ föredras" : "☆ föredra"}
+                  </button>
+                </form>
               </div>
             )}
 

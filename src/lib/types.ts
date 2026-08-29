@@ -12,6 +12,8 @@ export interface TjanstRad {
    * En sportnivå ger matcherna men inte filmkatalogen — se content/paket.ts.
    */
   omfattning: "allt" | "sport";
+  /** Lägre går först när en titel finns på flera tjänster. */
+  prioritet: number;
 }
 
 export interface KanalRad {
