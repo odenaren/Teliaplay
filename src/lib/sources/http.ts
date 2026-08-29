@@ -53,7 +53,11 @@ function varduppsattning(host: string): Record<string, string> {
  * först när du sett att värden tål det.
  */
 const HOST_INTERVAL_MS: Record<string, number> = {
-  "web-api.tv.nu": 600,
+  // tv.nu ligger bakom Cloudflare och stryper hårdare än 600 ms tålde:
+  // nittio anrop på en minut gav "HTTP 429 — You are being rate-limited by
+  // the website owner's configuration" mitt i hämtningen. 2,5 sekunder är
+  // långsamt nog att slippa det och ändå klara en hel tablå på fyra minuter.
+  "web-api.tv.nu": 2_500,
   "www.thesportsdb.com": 1_500,
   "api.themoviedb.org": 250,
   "ottapi.prod.telia.net": 800,
@@ -63,6 +67,13 @@ const HOST_INTERVAL_MS: Record<string, number> = {
 const lastHit = new Map<string, number>();
 
 async function hostGate(host: string): Promise<void> {
+  const kvar = avstangdSekunder(host);
+  if (kvar > 0) {
+    throw new Error(
+      `HTTP 429 — ${host} stryper oss, ${kvar} s kvar av pausen. Inget anrop skickades.`,
+    );
+  }
+
   const min = HOST_INTERVAL_MS[host] ?? HOST_INTERVAL_MS.default;
   const previous = lastHit.get(host) ?? 0;
   const wait = previous + min - Date.now();
@@ -71,9 +82,45 @@ async function hostGate(host: string): Promise<void> {
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
 }
 
+/*
+ * Strypning (429) står MEDVETET inte med.
+ *
+ * Ett omförsök 600 ms senare mot en tjänst som just sagt "för många anrop" är
+ * inte ett omförsök, det är samma fel en gång till — och det förlänger den
+ * tid vi är utestängda. En 429 hanteras i stället som en paus för hela
+ * värden, se svalka() nedan.
+ */
 function isRetryable(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
-  return /ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|HTTP (429|50\d)|aborted/i.test(msg);
+  return /ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|HTTP 50\d|aborted/i.test(msg);
+}
+
+/**
+ * Värdar vi blivit utestängda från, och när de får frågas igen.
+ *
+ * Poängen är att ETT 429 ska stoppa resten av körningen mot samma värd i
+ * stället för att nittio anrop var för sig går i väggen. Den som stryper oss
+ * har redan sagt vad den tycker; att fortsätta fråga gör bara pausen längre.
+ */
+const svalka = new Map<string, number>();
+
+/** Sekunder att vänta enligt Retry-After, eller null när huvudet saknas. */
+function retryAfterMs(res: Response): number | null {
+  const rad = res.headers.get("retry-after");
+  if (!rad) return null;
+
+  const sekunder = Number(rad);
+  if (Number.isFinite(sekunder)) return sekunder * 1000;
+
+  const datum = Date.parse(rad);
+  return Number.isFinite(datum) ? Math.max(0, datum - Date.now()) : null;
+}
+
+/** Hur länge värden är avstängd, i sekunder. 0 = inte avstängd. */
+export function avstangdSekunder(host: string): number {
+  const till = svalka.get(host);
+  if (!till) return 0;
+  return Math.max(0, Math.ceil((till - Date.now()) / 1000));
 }
 
 export interface HamtaOpts {
@@ -148,6 +195,20 @@ export async function fetchText(url: string, opts: HamtaOpts = {}): Promise<stri
         body: body ? JSON.stringify(body) : undefined,
         cache: "no-store",
       });
+      if (res.status === 429) {
+        /*
+         * Respektera Retry-After när den finns, annars fem minuter. Fem är
+         * valt för att en hämtning går var tjugonde minut: pausen hinner löpa
+         * ut till nästa körning, och vi bränner inte den heller.
+         */
+        const paus = retryAfterMs(res) ?? 5 * 60_000;
+        svalka.set(host, Date.now() + paus);
+        throw new Error(
+          `HTTP 429 — ${host} stryper oss. Pausar ${Math.round(paus / 1000)} s.` +
+            `${await varfor(res)}`,
+        );
+      }
+
       if (!res.ok) throw new Error(`HTTP ${res.status}${await varfor(res)}`);
       return await res.text();
     } catch (err) {

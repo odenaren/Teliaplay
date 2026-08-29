@@ -103,7 +103,7 @@ export async function hamtaAllt(djup: "snabb" | "full" = "snabb"): Promise<Samma
   steg.push(await kor("frö", froa));
   steg.push(await kor("telia", teliaSteg));
   steg.push(await kor("tv.nu kanaler", tvnuKanalSteg));
-  steg.push(await kor("tv.nu tablå", tvnuTablaSteg));
+  steg.push(await kor("tv.nu tablå", () => tvnuTablaSteg(djup)));
   steg.push(await kor("sport", sportSteg));
   steg.push(await kor("matchning", matchningsSteg));
 
@@ -275,15 +275,38 @@ async function tvnuKanalSteg(): Promise<number> {
  * per dag mot en gratis tjänst för data som aldrig får visas. Ingår-filtret
  * sparar alltså inte bara skärmyta utan också trafik.
  */
-async function tvnuTablaSteg(): Promise<number> {
+async function tvnuTablaSteg(djup: "snabb" | "full"): Promise<number> {
+  /*
+   * Den som väntat längst går först.
+   *
+   * Ordningen var k.sort, alltså alltid samma. Blev vi strypta halvvägs
+   * började nästa körning om från kanal ett och gick i väggen på samma
+   * ställe — kanalerna i slutet av listan hämtades ALDRIG. I drift såg det ut
+   * som att bara de första kanalerna fungerade.
+   *
+   * Med äldst först roterar kön av sig själv: det som missades i går ligger
+   * överst i dag, och en strypning kostar en fördröjning i stället för en
+   * permanent lucka. nulls first betyder att en nykopplad kanal går före
+   * allt annat, vilket är rätt — det är den man just satt sig och väntar på.
+   */
   const kanaler = await sql<{ id: string; tvnu_id: string }[]>`
     select k.id, k.tvnu_id
     from kanal k join tjanst t on t.id = k.tjanst_id
     where k.ingar = true and t.ingar = true and k.tvnu_id is not null
-    order by k.sort
+    order by k.tabla_forsokt_at asc nulls first, k.sort
   `;
 
-  const dagar = [0, 1, 2].map((n) => tvDayKey(new Date(Date.now() + n * 86_400_000)));
+  /*
+   * Två dygn på den täta körningen, tre på den dygnsvisa.
+   *
+   * Trettio kanaler gånger tre dygn är nittio anrop var tjugonde minut, och
+   * det var vad som drog på sig tv.nu:s strypning. Dygn tre ändrar sig ändå
+   * knappt mellan två körningar — det räcker att hämta det en gång om dagen.
+   */
+  const antalDagar = djup === "full" ? 3 : 2;
+  const dagar = Array.from({ length: antalDagar }, (_, n) =>
+    tvDayKey(new Date(Date.now() + n * 86_400_000)),
+  );
   let antal = 0;
 
   /*
@@ -320,8 +343,24 @@ async function tvnuTablaSteg(): Promise<number> {
         );
       }
 
+      let strypt: string | null = null;
+
       const program = await tvnu.hamtaTabla(kanal.tvnu_id, dag).catch((err: unknown) => {
         const rad = err instanceof Error ? err.message : String(err);
+
+        /*
+         * Strypning är inte kanalens fel och inte heller ett haveri.
+         *
+         * Den gäller hela värden: fortsätter vi till nästa kanal får den
+         * samma svar, och varje kanal efter den skulle märkas som trasig
+         * fastän ingenting är fel med den. Ett 429 avbryter därför HELA
+         * steget, och de kanaler som inte hunnit provas lämnas orörda så att
+         * /ingar säger "inte hämtad än" i stället för att döma dem.
+         */
+        if (/HTTP 429/.test(rad)) {
+          strypt = rad;
+          return null;
+        }
 
         if (/HTTP 40[034]/.test(rad)) {
           // Kanalens id, inte källan. Rör inte brytaren.
@@ -334,6 +373,17 @@ async function tvnuTablaSteg(): Promise<number> {
         kanalfel = rad.slice(0, 80);
         return null;
       });
+
+      if (strypt) {
+        await sql`
+          update kanal set tabla_forsokt_at = now(), tabla_fel = ${
+            "tv.nu stryper hämtningen just nu — försöker igen automatiskt"
+          } where id = ${kanal.id}
+        `;
+        throw new Error(
+          `${strypt} ${antal} sändningar hann sparas. Nästa hämtning tar vid där den slutade.`,
+        );
+      }
 
       if (program === null) continue;
       ifoljd = 0;
