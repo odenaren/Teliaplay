@@ -38,8 +38,16 @@ export default async function Sport() {
     `,
   ]);
 
-  const sanda = matcher.filter((m) => m.var);
-  const osanda = matcher.filter((m) => !m.var);
+  /*
+   * "Sänd" betyder går att se, inte finns i tablån.
+   *
+   * En strömmad match har ingen tablåkanal och hamnade därför under rubriken
+   * "Ingen sändning hittad" — tillsammans med matcher som verkligen inte går
+   * att se. Hela Allsvenskan låg där. Det som avgör är om du kan titta, inte
+   * hur sändningen råkar distribueras.
+   */
+  const sanda = matcher.filter((m) => m.var || m.strom);
+  const osanda = matcher.filter((m) => !m.var && !m.strom);
 
   // Krockar: par av matcher som överlappar i tid. Bara bland de sända — två
   // matcher du ändå inte kan se krockar inte i praktiken.

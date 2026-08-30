@@ -25,6 +25,8 @@
  * visa fel lag under rätt rubrik.
  */
 
+import type { TjanstId } from "./tjanster";
+
 export interface Liga {
   id: string;
   namn: string;
@@ -37,6 +39,25 @@ export interface Liga {
    * lib/match.ts när en match ska paras ihop med sin sändning.
    */
   tablaOrd: string[];
+
+  /**
+   * Vem som har rättigheterna, när det är känt.
+   *
+   * VARFÖR FÄLTET FINNS. En match som bara strömmas finns inte i någon tablå,
+   * och appen sa därför "ingen sändning hittad på det du har" om matcher som
+   * abonnenten mycket väl kan se. Allsvenskan 2026 är det tydligaste fallet:
+   * samtliga matcher går exklusivt på TV4 Play, bara utvalda på linjära TV4.
+   * Tablåmatchningen kan per definition inte hitta dem.
+   *
+   * DET HÄR ÄR REDAKTIONELLT OCH FÄRSKVARA. Rättigheter flyttar mellan
+   * tjänster, och listan är avskriven från Telias och TV4:s egna sidor i
+   * augusti 2026. Därför säger gränssnittet "går troligen på" och aldrig "går
+   * på": vi vet vem som har ligan, inte att just den här matchen sänds.
+   *
+   * Tom lista = vi vet inte, och då beter sig ligan precis som förut. Det är
+   * ett bättre svar än en gissning.
+   */
+  tjanster?: TjanstId[];
 }
 
 export const LIGOR: Liga[] = [
@@ -44,18 +65,18 @@ export const LIGOR: Liga[] = [
   // där ändringen gjordes. Det gamla värdet (4331) var bevisligen fel, eftersom
   // Bundesliga har det. Stämmer inte 4347 heller säger väljaren det rakt ut och
   // namnsökningen fungerar ändå. Kör `npm run probe -- sportsdb` för att fastställa.
-  { id: "allsvenskan", namn: "Allsvenskan", sport: "fotboll", sportsdbId: "4347", tablaOrd: ["allsvenskan"] },
-  { id: "superettan", namn: "Superettan", sport: "fotboll", sportsdbId: "4403", tablaOrd: ["superettan"] },
+  { id: "allsvenskan", namn: "Allsvenskan", sport: "fotboll", sportsdbId: "4347", tablaOrd: ["allsvenskan"], tjanster: ["tv4play"] },
+  { id: "superettan", namn: "Superettan", sport: "fotboll", sportsdbId: "4403", tablaOrd: ["superettan"], tjanster: ["tv4play"] },
   { id: "damallsvenskan", namn: "Damallsvenskan", sport: "fotboll", sportsdbId: "4816", tablaOrd: ["damallsvenskan"] },
-  { id: "premier-league", namn: "Premier League", sport: "fotboll", sportsdbId: "4328", tablaOrd: ["premier league", "england"] },
-  { id: "champions-league", namn: "Champions League", sport: "fotboll", sportsdbId: "4480", tablaOrd: ["champions league", "cl"] },
+  { id: "premier-league", namn: "Premier League", sport: "fotboll", sportsdbId: "4328", tablaOrd: ["premier league", "england"], tjanster: ["viaplay", "prime"] },
+  { id: "champions-league", namn: "Champions League", sport: "fotboll", sportsdbId: "4480", tablaOrd: ["champions league", "cl"], tjanster: ["viaplay"] },
   { id: "europa-league", namn: "Europa League", sport: "fotboll", sportsdbId: "4481", tablaOrd: ["europa league"] },
-  { id: "la-liga", namn: "La Liga", sport: "fotboll", sportsdbId: "4335", tablaOrd: ["la liga", "spanien"] },
+  { id: "la-liga", namn: "La Liga", sport: "fotboll", sportsdbId: "4335", tablaOrd: ["la liga", "spanien"], tjanster: ["disney"] },
   { id: "serie-a", namn: "Serie A", sport: "fotboll", sportsdbId: "4332", tablaOrd: ["serie a", "italien"] },
   { id: "bundesliga", namn: "Bundesliga", sport: "fotboll", sportsdbId: "4331", tablaOrd: ["bundesliga", "tyskland"] },
   { id: "shl", namn: "SHL", sport: "hockey", sportsdbId: "4444", tablaOrd: ["shl", "hockey"] },
-  { id: "nhl", namn: "NHL", sport: "hockey", sportsdbId: "4380", tablaOrd: ["nhl"] },
-  { id: "formel-1", namn: "Formel 1", sport: "motorsport", sportsdbId: "4370", tablaOrd: ["formel 1", "f1", "grand prix"] },
+  { id: "nhl", namn: "NHL", sport: "hockey", sportsdbId: "4380", tablaOrd: ["nhl"], tjanster: ["viaplay"] },
+  { id: "formel-1", namn: "Formel 1", sport: "motorsport", sportsdbId: "4370", tablaOrd: ["formel 1", "f1", "grand prix"], tjanster: ["viaplay"] },
 ];
 
 const BY_ID = new Map(LIGOR.map((l) => [l.id, l]));

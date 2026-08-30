@@ -104,6 +104,14 @@ export interface MatchRad {
  */
 export interface MatchVy extends MatchRad {
   var: { kanalId: string; kanalNamn: string; tjanstId: string } | null;
+  /**
+   * Tjänsten matchen strömmas på när den inte finns i tablån.
+   *
+   * `sakert` skiljer en inmatad uppgift från ett antagande ur ligans
+   * rättigheter. Skillnaden syns i gränssnittet — en app som säger "går på"
+   * om något den gissat är en app man slutar tro på.
+   */
+  strom: { tjanstId: string; sakert: boolean } | null;
   favoritlag: string[];
 }
 

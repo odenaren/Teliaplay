@@ -202,6 +202,38 @@ export async function kommandeMatcher(
     order by m.start
   `;
 
+  /*
+   * Strömmande sport utan linjär kanal.
+   *
+   * En match som bara går på en streamingtjänst finns inte i någon tablå, och
+   * tablåmatchningen kan därför per definition inte hitta den. Appen sa då
+   * "ingen sändning hittad på det du har" — om en match abonnenten mycket väl
+   * kan se. Allsvenskan 2026 är hela ligan: samtliga matcher exklusivt på TV4
+   * Play, bara utvalda på linjära TV4.
+   *
+   * Två vägar in, i den ordningen:
+   *
+   *   1. sportmatch.tjanst_id, satt för hand. Fältet har funnits hela tiden
+   *      utan att användas. En uppgift någon skrivit in slår alltid en tabell.
+   *   2. Ligans rättighetshavare ur content/ligor.ts, om du har tjänsten.
+   *      Det är ett kvalificerat antagande och märks som ett: "troligen".
+   */
+  const { liga } = await import("@/content/ligor");
+  const dinaTjanster = new Set(
+    (await sql<{ id: string }[]>`select id from tjanst where ingar = true`).map((t) => t.id),
+  );
+
+  const strommas = (r: { liga_id: string | null; tjanst_id: string | null }) => {
+    if (r.tjanst_id && dinaTjanster.has(r.tjanst_id)) {
+      return { tjanstId: r.tjanst_id, sakert: true };
+    }
+
+    const rattigheter = r.liga_id ? (liga(r.liga_id)?.tjanster ?? []) : [];
+    const min = rattigheter.find((t) => dinaTjanster.has(t));
+
+    return min ? { tjanstId: min, sakert: false } : null;
+  };
+
   return rader.map((r) => ({
     id: r.id,
     liga_id: r.liga_id,
@@ -213,6 +245,7 @@ export async function kommandeMatcher(
     var: r.kanal_id
       ? { kanalId: r.kanal_id, kanalNamn: r.kanal_namn!, tjanstId: r.kanal_tjanst! }
       : null,
+    strom: r.kanal_id ? null : strommas(r),
     favoritlag: [],
   }));
 }
