@@ -80,7 +80,60 @@ export const LIGOR: Liga[] = [
 ];
 
 const BY_ID = new Map(LIGOR.map((l) => [l.id, l]));
+const BY_SPORTSDB = new Map(LIGOR.map((l) => [l.sportsdbId, l]));
 
 export function liga(id: string): Liga | undefined {
   return BY_ID.get(id);
+}
+
+/**
+ * Slår upp en liga på ANTINGEN vårt id eller TheSportsDB:s.
+ *
+ * VARFÖR BÅDA. sportmatch.liga_id fylls av hämtningen med TheSportsDB:s egna
+ * nummer — "4328", inte "premier-league". Uppslagningen av rättighetshavare
+ * gjordes mot vårt id och träffade därför aldrig, så varje strömmad match föll
+ * tillbaka på "ingen sändning hittad" trots att ligan stod med i listan.
+ *
+ * Felet syntes inte i testet, eftersom testet skrev in vårt id för hand. Det
+ * bekräftade antagandet i stället för verkligheten. Att ta emot båda formerna
+ * är dessutom rätt oavsett: rader skrivna före den här ändringen bär gamla
+ * nummer och ska fortsätta fungera.
+ */
+export function hittaLiga(id: string | null | undefined): Liga | undefined {
+  if (!id) return undefined;
+  return BY_ID.get(id) ?? BY_SPORTSDB.get(id);
+}
+
+/** Normaliserar ett liganamn: gemener, inga specialtecken, inga mellanrum. */
+function namnNyckel(namn: string): string {
+  return namn
+    .toLowerCase()
+    .replace(/[åä]/g, "a")
+    .replace(/ö/g, "o")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+/**
+ * Slår upp en liga på NAMN, som en andra väg när id:t inte träffar.
+ *
+ * TheSportsDB skriver "Swedish Allsvenskan", "English Premier League",
+ * "Spanish La Liga" — vårt namn ligger inuti deras. Matchningen är därför
+ * "innehåller", inte "lika med".
+ *
+ * Vägen finns eftersom liga-id:na är avskrivna för hand och minst ett är
+ * overifierat. Ett fel id ska kosta en långsammare uppslagning, inte en
+ * match som påstås osänd.
+ */
+export function hittaLigaViaNamn(namn: string | null | undefined): Liga | undefined {
+  if (!namn) return undefined;
+  const nyckel = namnNyckel(namn);
+  if (!nyckel) return undefined;
+
+  return LIGOR.find((l) => {
+    if (nyckel.includes(namnNyckel(l.namn))) return true;
+    return l.tablaOrd.some((ord) => {
+      const o = namnNyckel(ord);
+      return o.length >= 4 && nyckel.includes(o);
+    });
+  });
 }

@@ -33,6 +33,14 @@ export interface SportsdbMatch {
   borta: string;
   start: Date | null;
   ligaId: string | null;
+  /**
+   * Ligans namn enligt källan, t.ex. "Swedish Allsvenskan".
+   *
+   * Följer med för att id:t inte går att lita på: våra liga-id:n är avskrivna
+   * för hand och ett av dem är overifierat. Namnet ger en andra väg in, och
+   * två oberoende vägar gör uppslagningen robust mot att den ena är fel.
+   */
+  liga: string | null;
 }
 
 /**
@@ -128,11 +136,14 @@ function tolkaMatch(e: Record<string, unknown>): SportsdbMatch[] {
   const borta = e.strAwayTeam;
   if (typeof id !== "string" || typeof hemma !== "string" || typeof borta !== "string") return [];
 
+  const text = (v: unknown) => (typeof v === "string" && v ? v : null);
+
   return [
     {
       id,
       hemma,
       borta,
+      liga: text(e.strLeague),
       start: startTid(e),
       ligaId: typeof e.idLeague === "string" ? e.idLeague : null,
     },

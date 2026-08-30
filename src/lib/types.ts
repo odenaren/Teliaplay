@@ -89,6 +89,8 @@ export interface TitelVy extends TitelRad {
 export interface MatchRad {
   id: string;
   liga_id: string | null;
+  /** Ligans namn enligt källan. Reserv när liga_id inte känns igen. */
+  liga_namn?: string | null;
   hemma: string;
   borta: string;
   start: Date;

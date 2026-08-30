@@ -390,6 +390,15 @@ alter table tjanst add column if not exists prioritet integer not null default 1
 alter table kanal add column if not exists tabla_forsokt_at timestamptz;
 alter table kanal add column if not exists tabla_fel text;
 
+-- Ligans namn enligt källan, t.ex. "Swedish Allsvenskan".
+--
+-- liga_id fylls med TheSportsDB:s nummer, och våra motsvarande nummer är
+-- avskrivna för hand — minst ett är overifierat. Träffar inte numret finns
+-- namnet kvar som andra väg in, och rader som redan skrivits med ett nummer vi
+-- inte känner igen blir läsbara vid nästa hämtning i stället för att förbli
+-- gåtor.
+alter table sportmatch add column if not exists liga_namn text;
+
 -- ----------------------------------------------------------------- index
 create index if not exists program_start_idx on program (start);
 create index if not exists program_kanal_start_idx on program (kanal_id, start);

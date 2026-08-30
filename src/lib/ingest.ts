@@ -14,7 +14,7 @@
 import { sql, ensureSchema } from "./db";
 import { TJANSTER, ALLTID_INGAR } from "@/content/tjanster";
 import { KANALER, kanalNycklar } from "@/content/kanaler";
-import { LIGOR } from "@/content/ligor";
+import { LIGOR, hittaLiga, hittaLigaViaNamn } from "@/content/ligor";
 import { titelNyckel, lagNyckel, hittaSandning, type Kandidat } from "./match";
 import { tvDayKey } from "./time";
 import * as tvnu from "./sources/tvnu";
@@ -449,10 +449,23 @@ async function sportSteg(): Promise<number> {
     const matcher = await sportsdb.hamtaMatcher(l.sportsdb_id!).catch(() => []);
     for (const m of matcher) {
       if (!m.start) continue;
+      /*
+       * Översätt TheSportsDB:s liganummer till vårt id när vi känner igen det.
+       *
+       * Fältet fylldes med deras nummer ("4328"), medan resten av appen slår
+       * upp ligor på vår slug ("premier-league"). Läsvägen tar numera emot
+       * båda, men det är bättre att datan är enhetlig än att varje läsare
+       * måste komma ihåg att den inte är det. Okända nummer sparas som de är —
+       * de säger fortfarande något, och kan översättas senare.
+       */
+      const ligaId = hittaLiga(m.ligaId)?.id ?? hittaLigaViaNamn(m.liga)?.id ?? m.ligaId;
+
       await sql`
-        insert into sportmatch (id, sportsdb_id, liga_id, hemma, borta, start)
-        values (${`sdb:${m.id}`}, ${m.id}, ${m.ligaId}, ${m.hemma}, ${m.borta}, ${m.start})
+        insert into sportmatch (id, sportsdb_id, liga_id, liga_namn, hemma, borta, start)
+        values (${`sdb:${m.id}`}, ${m.id}, ${ligaId}, ${m.liga}, ${m.hemma}, ${m.borta}, ${m.start})
         on conflict (id) do update set
+          liga_id   = excluded.liga_id,
+          liga_namn = excluded.liga_namn,
           start     = excluded.start,
           hamtad_at = now()
       `;

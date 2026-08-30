@@ -177,9 +177,13 @@ export async function kommandeMatcher(
   const dagar = opts.dagar ?? 14;
 
   const rader = await sql<
-    (MatchVy & { kanal_id: string | null; kanal_namn: string | null; kanal_tjanst: string | null })[]
+    (MatchVy & {
+      kanal_id: string | null;
+      kanal_namn: string | null;
+      kanal_tjanst: string | null;
+    })[]
   >`
-    select m.id, m.liga_id, m.hemma, m.borta, m.start, m.program_id, m.tjanst_id,
+    select m.id, m.liga_id, m.liga_namn, m.hemma, m.borta, m.start, m.program_id, m.tjanst_id,
            k.id as kanal_id, k.namn as kanal_namn, k.tjanst_id as kanal_tjanst
     from sportmatch m
     left join program p on p.id = m.program_id
@@ -218,17 +222,24 @@ export async function kommandeMatcher(
    *   2. Ligans rättighetshavare ur content/ligor.ts, om du har tjänsten.
    *      Det är ett kvalificerat antagande och märks som ett: "troligen".
    */
-  const { liga } = await import("@/content/ligor");
+  const { hittaLiga, hittaLigaViaNamn } = await import("@/content/ligor");
   const dinaTjanster = new Set(
     (await sql<{ id: string }[]>`select id from tjanst where ingar = true`).map((t) => t.id),
   );
 
-  const strommas = (r: { liga_id: string | null; tjanst_id: string | null }) => {
+  const strommas = (r: {
+    liga_id: string | null;
+    liga_namn?: string | null;
+    tjanst_id: string | null;
+  }) => {
     if (r.tjanst_id && dinaTjanster.has(r.tjanst_id)) {
       return { tjanstId: r.tjanst_id, sakert: true };
     }
 
-    const rattigheter = r.liga_id ? (liga(r.liga_id)?.tjanster ?? []) : [];
+    // Numret först, namnet som reserv. Två oberoende vägar, eftersom den
+    // ena bygger på id:n vi skrivit av för hand.
+    const l = hittaLiga(r.liga_id) ?? hittaLigaViaNamn(r.liga_namn);
+    const rattigheter = l?.tjanster ?? [];
     const min = rattigheter.find((t) => dinaTjanster.has(t));
 
     return min ? { tjanstId: min, sakert: false } : null;
@@ -237,6 +248,7 @@ export async function kommandeMatcher(
   return rader.map((r) => ({
     id: r.id,
     liga_id: r.liga_id,
+    liga_namn: r.liga_namn,
     hemma: r.hemma,
     borta: r.borta,
     start: r.start,
